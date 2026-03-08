@@ -1,0 +1,25 @@
+{
+  "name": "전방주시철저 · Eyes on Road",
+  "short_name": "전방주시철저",
+  "description": "전방 교차로 직진 신호 잔여시간 실시간 확인 · 작은앱공방",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#080810",
+  "theme_color": "#080810",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
