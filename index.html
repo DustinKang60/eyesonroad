@@ -10,9 +10,9 @@
 <link rel="manifest" href="manifest.json">
 <title>전방주시철저 · Eyes on Road</title>
 
-<!-- 카카오맵 SDK -->
+<!-- 카카오맵 SDK (autoload=false: 명시적으로 로딩 후 초기화) -->
 <script type="text/javascript"
-  src="//dapi.kakao.com/v2/maps/sdk.js?appkey=de384631087fc6da4217af7491aba7f4&libraries=services">
+  src="//dapi.kakao.com/v2/maps/sdk.js?appkey=de384631087fc6da4217af7491aba7f4&libraries=services&autoload=false">
 </script>
 
 <!-- 폰트 -->
@@ -1034,9 +1034,7 @@ const App = {
         const { latitude: lat, longitude: lng } = pos.coords;
 
         // 카카오맵 초기화
-        if (typeof kakao !== 'undefined') {
-          initMap(lat, lng);
-        }
+        initMap(lat, lng);
 
         // 연속 위치 추적 시작
         State.watchId = navigator.geolocation.watchPosition(
@@ -1105,8 +1103,11 @@ const Settings = {
    앱 시작
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 window.addEventListener('load', () => {
-  // GPS 자동 시도 — 권한 있으면 바로 시작, 없으면 오버레이 표시
-  App.requestGPS();
+  // 카카오맵 SDK 로딩 완료 후 GPS 시작
+  kakao.maps.load(() => {
+    console.log('[카카오맵] SDK 로딩 완료');
+    App.requestGPS();
+  });
 
   // WakeLock 재취득 (탭 복귀 시)
   document.addEventListener('visibilitychange', () => {
