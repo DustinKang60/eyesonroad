@@ -86,7 +86,8 @@ html, body {
   overflow:hidden;
 }
 #kakaoMap {
-  width:100%; height:100%;
+  width:100%; height:100%; min-height:200px;
+  display:block;
 }
 
 /* 지도 상단 오버레이 */
@@ -614,7 +615,7 @@ const CONFIG = {
   KAKAO_APP_KEY: '9340ebea6ef873e084a5f21f7b0d7da1',
   SIGNAL_FETCH_INTERVAL: 3000,   // 신호 갱신 주기 (ms)
   GPS_UPDATE_INTERVAL:   2000,   // GPS 갱신 주기 (ms)
-  NEAR_DISTANCE:         300,    // 교차로 근접 거리 (m) — 이 안에 들어오면 신호 조회
+  NEAR_DISTANCE:         9999,   // 교차로 근접 거리 (m) — 항상 가장 가까운 교차로 조회
   WARN_SECONDS:          5,      // 초록불 경고 타이밍
   ALERT_TYPE:            'sound' // sound | vibrate | visual
 };
@@ -714,12 +715,17 @@ function initMap(lat, lng) {
   const container = document.getElementById('kakaoMap');
   const options = {
     center: new kakao.maps.LatLng(lat, lng),
-    level: 3,
-    draggable: false,
+    level: 5,
+    draggable: true,
     scrollwheel: false,
     disableDoubleClickZoom: true,
   };
   State.map = new kakao.maps.Map(container, options);
+  // 컨테이너 크기 재계산 (HTTPS/GitHub Pages에서 지도 안 뜨는 문제 방지)
+  setTimeout(() => {
+    State.map.relayout();
+    State.map.setCenter(new kakao.maps.LatLng(lat, lng));
+  }, 200);
 
   // 내 위치 마커
   const myImg = new kakao.maps.MarkerImage(
@@ -766,14 +772,28 @@ function findNearestIntersection(lat, lng) {
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 async function fetchSignal(itstId) {
   try {
-    const url = `${CONFIG.TDATA_URL}?apiKey=${CONFIG.TDATA_API_KEY}&type=json&pageNo=1&numOfRows=1&itstId=${itstId}`;
+    const url = `${CONFIG.TDATA_URL}?apiKey=${CONFIG.TDATA_API_KEY}&type=json&pageNo=1&numOfRows=5&itstId=${itstId}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    // 응답 구조: { data: [...] } 또는 배열
-    const items = json.data || json;
-    if (!items || items.length === 0) return null;
-    return items[0];
+    const raw = await res.text();
+    console.log('[T-Data 응답]', raw.substring(0, 300));
+
+    let json;
+    try { json = JSON.parse(raw); } catch(e) { console.warn('JSON 파싱 실패'); return null; }
+
+    // 응답 구조 탐색: 배열 / { data:[...] } / { body:{ items:[...] } }
+    let items = null;
+    if (Array.isArray(json))          items = json;
+    else if (Array.isArray(json.data)) items = json.data;
+    else if (json.body?.items)        items = json.body.items;
+    else if (typeof json === 'object') items = [json]; // 단일 객체
+
+    if (!items || items.length === 0) { console.warn('T-Data: 데이터 없음'); return null; }
+
+    // itstId가 일치하는 항목 우선, 없으면 첫 번째
+    const matched = items.find(it => String(it.itstId) === String(itstId)) || items[0];
+    console.log('[T-Data 파싱]', matched);
+    return matched;
   } catch(e) {
     console.warn('신호 API 오류:', e);
     return null;
@@ -1037,6 +1057,8 @@ const App = {
       },
       (err) => {
         console.warn('위치 접근 거부:', err);
+        // 오버레이 다시 표시
+        document.getElementById('gpsOverlay').classList.remove('hidden');
         document.getElementById('gpsChip').classList.add('off');
         document.getElementById('gpsChip').textContent = '● GPS 없음';
       },
@@ -1083,16 +1105,9 @@ const Settings = {
    앱 시작
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 window.addEventListener('load', () => {
-  // GPS 권한 확인
-  if (navigator.permissions) {
-    navigator.permissions.query({ name: 'geolocation' }).then(result => {
-      if (result.state === 'granted') {
-        document.getElementById('gpsOverlay').classList.add('hidden');
-        App.requestGPS();
-      }
-      // denied or prompt → 오버레이 유지
-    });
-  }
+  // GPS 자동 시도 — 권한 있으면 바로 시작, 없으면 오버레이 표시
+  App.requestGPS();
+
   // WakeLock 재취득 (탭 복귀 시)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') App.requestWakeLock();
