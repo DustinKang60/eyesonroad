@@ -10,9 +10,9 @@
 <link rel="manifest" href="manifest.json">
 <title>전방주시철저 · Eyes on Road</title>
 
-<!-- 카카오맵 SDK (autoload=false: 명시적으로 로딩 후 초기화) -->
+<!-- 카카오맵 SDK -->
 <script type="text/javascript"
-  src="//dapi.kakao.com/v2/maps/sdk.js?appkey=2ced2e09ce293e7efb020df8229663be&libraries=services&autoload=false">
+  src="//dapi.kakao.com/v2/maps/sdk.js?appkey=2ced2e09ce293e7efb020df8229663be&libraries=services">
 </script>
 
 <!-- 폰트 -->
@@ -1074,44 +1074,30 @@ const Settings = {
    앱 시작
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 window.addEventListener('load', () => {
-  // 카카오 SDK 로딩과 GPS를 동시에 시작
-  // 둘 다 준비되면 지도 초기화
-  let kakaoReady = false;
-  let gpsReady   = false;
-  let initPos    = null;
-
-  function tryInitMap() {
-    if (kakaoReady && gpsReady && initPos && !State.map) {
-      console.log('[지도 초기화]', initPos);
-      initMap(initPos.lat, initPos.lng);
-    }
-  }
-
-  // 1) 카카오 SDK 로딩
-  if (typeof kakao !== 'undefined') {
-    kakao.maps.load(() => {
-      console.log('[카카오] SDK 준비 완료');
-      kakaoReady = true;
-      tryInitMap();
-    });
-  } else {
+  // 카카오 SDK는 동기 로딩이므로 이미 준비된 상태
+  // GPS 시작하면서 위치 잡히면 바로 지도 초기화
+  if (typeof kakao === 'undefined') {
     console.error('[카카오] SDK 로딩 실패 - 키/도메인 확인 필요');
+  } else {
+    console.log('[카카오] SDK 준비 완료');
   }
 
-  // 2) GPS 시작 (카카오와 무관하게 즉시)
   if (!navigator.geolocation) {
     alert('위치 서비스를 지원하지 않는 브라우저입니다.');
     return;
   }
+
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       document.getElementById('gpsOverlay').classList.add('hidden');
       const { latitude: lat, longitude: lng } = pos.coords;
-      initPos  = { lat, lng };
-      gpsReady = true;
       State.myPos = { lat, lng };
       console.log('[GPS] 초기 위치', lat, lng);
-      tryInitMap();
+
+      // 카카오 준비됐으면 바로 지도 초기화
+      if (typeof kakao !== 'undefined') {
+        initMap(lat, lng);
+      }
 
       // 연속 위치 추적
       State.watchId = navigator.geolocation.watchPosition(
