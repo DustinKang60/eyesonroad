@@ -66,10 +66,11 @@ html, body {
 
 /* ━━━━━ MAIN SIGNAL ━━━━━ */
 .signal-main {
-  flex-shrink:0;
-  padding:0 18px 10px;
+  flex:1;
+  padding:0 18px 8px;
   display:flex; flex-direction:column;
-  align-items:center; position:relative;
+  align-items:center; justify-content:space-evenly;
+  position:relative; min-height:0;
 }
 .tl-row { display:flex; gap:10px; align-items:center; margin-bottom:6px; }
 .bulb { width:16px; height:16px; border-radius:50%; transition:box-shadow 0.4s, opacity 0.4s; }
@@ -129,7 +130,7 @@ html, body {
 
 /* ━━━━━ GUIDE ━━━━━ */
 .guide-box {
-  margin:0 18px; border-radius:14px; padding:12px 16px;
+  margin:0 18px; border-radius:14px; padding:11px 16px;
   border:1px solid var(--border); background:rgba(255,255,255,0.03);
   transition:background 0.4s, border-color 0.4s;
   display:flex; align-items:flex-start; gap:12px; flex-shrink:0;
@@ -143,7 +144,7 @@ html, body {
 
 /* ━━━━━ INTERSECTION INFO ━━━━━ */
 .itst-info {
-  margin:10px 18px 0;
+  margin:0 18px;
   background:var(--bg2); border:1px solid var(--border);
   border-radius:14px; padding:12px 16px;
   display:flex; justify-content:space-between; align-items:center;
@@ -164,7 +165,7 @@ html, body {
 .dist-unit  { font-size:9px; color:var(--mid); }
 
 /* ━━━━━ INFO ROW ━━━━━ */
-.info-row { margin:10px 18px 0; display:flex; gap:8px; }
+.info-row { margin:0 18px; display:flex; gap:8px; }
 .info-card {
   flex:1; background:var(--bg2); border:1px solid var(--border);
   border-radius:12px; padding:10px 14px;
@@ -181,7 +182,7 @@ html, body {
 
 /* ━━━━━ BOTTOM BAR ━━━━━ */
 .bottom-bar {
-  flex-shrink:0; margin-top:auto;
+  flex-shrink:0;
   padding:10px 18px 20px;
   display:flex; justify-content:space-between; align-items:center;
   border-top:1px solid var(--border);
@@ -837,7 +838,7 @@ window.addEventListener('load', async () => {
       $('gpsPill').textContent = '● GPS';
 
       // 초기 교차로 표시
-      const { nearest, second, outOfCoverage } = findNearest(lat, lng, heading);
+      const { nearest, second, outOfCoverage } = findNearest(lat, lng, null);
       S.nearestItst = nearest; S.secondItst = second;
       setIntersectionUI(nearest, second, outOfCoverage);
       if (outOfCoverage) {
