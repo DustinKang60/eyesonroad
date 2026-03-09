@@ -157,58 +157,58 @@ html, body {
 .dist-num.far   { color:var(--green); }
 .dist-unit { font-size:10px; color:var(--mid); }
 
-/* ── 신호 패널 (하단 60%) ── */
+/* ── 신호 패널 (하단 58%) ── */
 .signal-panel {
   flex:1;
   display:flex; flex-direction:column;
   justify-content:space-between;
-  padding:16px 18px 12px;
+  padding:16px 18px 14px;
   position:relative;
   overflow:hidden;
-  transition:background 0.5s;
 }
+
+/* 신호 색상 배경 글로우 */
 .signal-panel::before {
   content:'';
   position:absolute; bottom:-80px; left:50%;
   transform:translateX(-50%);
-  width:320px; height:220px;
+  width:300px; height:200px;
   border-radius:50%;
-  filter:blur(65px);
-  opacity:0.09;
+  filter:blur(60px);
+  opacity:0.08;
   pointer-events:none;
   transition:background 0.5s;
 }
 .signal-panel.green::before  { background:var(--green); }
 .signal-panel.yellow::before { background:var(--yellow); }
 .signal-panel.red::before    { background:var(--red); }
-.signal-panel.none::before   { background:transparent; }
 
-/* 신호 메인 행 */
+/* 신호 메인 영역 */
 .sig-main {
-  display:flex; align-items:center; gap:14px;
+  display:flex; align-items:center; gap:16px;
 }
 
 /* 신호등 3구 */
 .tl-wrap {
-  background:rgba(0,0,0,0.5);
+  background:rgba(0,0,0,0.45);
   border:1px solid var(--border);
-  border-radius:28px;
-  padding:12px 8px;
-  display:flex; flex-direction:column; gap:8px;
+  border-radius:22px;
+  padding:10px 7px;
+  display:flex; flex-direction:column; gap:6px;
   flex-shrink:0;
 }
 .tl-bulb {
-  width:28px; height:28px; border-radius:50%;
+  width:22px; height:22px; border-radius:50%;
   transition:box-shadow 0.4s, opacity 0.4s;
 }
-.tl-r { background:#FF3D57; opacity:0.14; }
-.tl-y { background:#FFD600; opacity:0.14; }
-.tl-g { background:#00E676; opacity:0.14; }
-.tl-r.on { opacity:1; box-shadow:0 0 12px #FF3D57, 0 0 22px rgba(255,61,87,0.45); }
-.tl-y.on { opacity:1; box-shadow:0 0 12px #FFD600, 0 0 22px rgba(255,214,0,0.45); }
-.tl-g.on { opacity:1; box-shadow:0 0 12px #00E676, 0 0 22px rgba(0,230,118,0.45); }
+.tl-r { background:#FF3D57; opacity:0.15; }
+.tl-y { background:#FFD600; opacity:0.15; }
+.tl-g { background:#00E676; opacity:0.15; }
+.tl-r.on { opacity:1; box-shadow:0 0 12px #FF3D57, 0 0 24px rgba(255,61,87,0.4); }
+.tl-y.on { opacity:1; box-shadow:0 0 12px #FFD600, 0 0 24px rgba(255,214,0,0.4); }
+.tl-g.on { opacity:1; box-shadow:0 0 12px #00E676, 0 0 24px rgba(0,230,118,0.4); }
 
-/* 숫자 블록 */
+/* 숫자 + 레이블 */
 .sig-time-block { flex:1; }
 .sig-type-label {
   font-size:10px; color:var(--dim);
@@ -216,64 +216,73 @@ html, body {
 }
 .sig-number {
   font-family:'Bebas Neue';
-  font-size:120px; line-height:0.88;
+  font-size:100px;
+  line-height:0.88;
   letter-spacing:0.02em;
   transition:color 0.4s;
+  color:var(--dim);
 }
 .sig-number.green  { color:var(--green); }
 .sig-number.yellow { color:var(--yellow); }
 .sig-number.red    { color:var(--red); }
-.sig-number.none   { color:var(--dim); }
-.sig-unit { font-size:13px; color:var(--mid); margin-top:4px; }
+.sig-seconds {
+  font-size:15px; color:var(--mid);
+  margin-top:4px; letter-spacing:0.04em;
+}
 
 /* 프로그레스 바 */
 .prog-wrap {
-  height:4px;
+  height:5px;
   background:rgba(255,255,255,0.07);
   border-radius:99px; overflow:hidden;
+  margin:6px 0;
 }
 .prog-bar {
   height:100%; border-radius:99px;
   transition:width 1s linear, background 0.4s;
+  background:var(--dim);
 }
 .prog-bar.green  { background:var(--green); }
 .prog-bar.yellow { background:var(--yellow); }
 .prog-bar.red    { background:var(--red); }
-.prog-bar.none   { background:var(--dim); width:0!important; }
 
-/* 가이드 박스 */
+/* 가이드 메시지 */
 .guide-box {
   border-radius:14px;
-  padding:12px 15px;
-  display:flex; align-items:center; gap:11px;
+  padding:13px 16px;
+  display:flex; align-items:center; gap:12px;
   transition:background 0.4s, border-color 0.4s;
-  border:1px solid transparent;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,0.04);
 }
 .guide-box.go      { background:rgba(0,230,118,0.08);  border-color:rgba(0,230,118,0.22); }
 .guide-box.caution { background:rgba(255,214,0,0.08);  border-color:rgba(255,214,0,0.22); }
 .guide-box.stop    { background:rgba(255,61,87,0.08);   border-color:rgba(255,61,87,0.22); }
-.guide-box.wait    { background:rgba(255,255,255,0.04); border-color:var(--border); }
-.guide-emoji { font-size:24px; flex-shrink:0; }
-.g-main { font-size:13px; font-weight:700; letter-spacing:-0.01em; margin-bottom:2px; }
-.g-sub  { font-size:11px; color:var(--mid); line-height:1.5; }
+.guide-emoji { font-size:26px; flex-shrink:0; }
+.guide-texts .g-main { font-size:14px; font-weight:700; letter-spacing:-0.01em; margin-bottom:2px; }
+.guide-texts .g-sub  { font-size:11px; color:var(--mid); line-height:1.5; }
 
-/* 하단: 브랜드 + 설정버튼 */
-.panel-footer {
-  display:flex; align-items:center; justify-content:space-between;
-}
-.bottom-brand {
-  font-size:9px; color:var(--dim); letter-spacing:0.1em;
-}
+/* 설정 버튼 (우하단 절대위치) */
 .settings-btn {
-  width:36px; height:36px;
+  position:absolute; bottom:16px; right:18px;
+  width:38px; height:38px;
   background:rgba(255,255,255,0.07);
   border:1px solid var(--border);
   border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  font-size:16px; cursor:pointer;
+  font-size:17px; cursor:pointer;
   transition:background 0.2s;
+  z-index:30;
 }
-.settings-btn:active { background:rgba(255,255,255,0.15); }
+.settings-btn:active { background:rgba(255,255,255,0.14); }
+
+/* 하단 브랜드 */
+.bottom-brand {
+  text-align:center;
+  font-size:9px; color:var(--dim);
+  letter-spacing:0.12em;
+  padding-bottom:24px;
+}
 
 /* 로딩/에러 오버레이 */
 .overlay {
@@ -472,8 +481,9 @@ html, body {
   </div>
 
   <!-- 신호 패널 -->
-  <div class="signal-panel none" id="signalPanel">
+  <div class="signal-panel" id="signalPanel">
 
+    <!-- 신호 메인 -->
     <div class="sig-main">
       <!-- 신호등 3구 -->
       <div class="tl-wrap">
@@ -484,30 +494,29 @@ html, body {
       <!-- 잔여시간 숫자 -->
       <div class="sig-time-block">
         <div class="sig-type-label">직진 신호 잔여시간</div>
-        <div class="sig-number none" id="sigNum">--</div>
-        <div class="sig-unit">초 남음</div>
+        <div class="sig-number" id="sigNum">--</div>
+        <div class="sig-seconds">초 남음</div>
       </div>
     </div>
 
     <!-- 프로그레스 -->
     <div class="prog-wrap">
-      <div class="prog-bar none" id="progBar" style="width:0%"></div>
+      <div class="prog-bar" id="progBar" style="width:0%"></div>
     </div>
 
     <!-- 가이드 -->
-    <div class="guide-box wait" id="guideBox">
+    <div class="guide-box" id="guideBox">
       <div class="guide-emoji" id="guideEmoji">📡</div>
-      <div>
+      <div class="guide-texts">
         <div class="g-main" id="guideMain">신호 데이터 수신 중...</div>
-        <div class="g-sub"  id="guideSub">GPS 위치를 확인하고 있습니다</div>
+        <div class="g-sub"  id="guideSub">전방 교로를 탐색하고 있습니다</div>
       </div>
     </div>
 
-    <!-- 하단 -->
-    <div class="panel-footer">
-      <div class="bottom-brand">작은앱공방 · Eyes on Road</div>
-      <button class="settings-btn" onclick="App.showSettings()">⚙️</button>
-    </div>
+    <div class="bottom-brand">작은앱공방 · Eyes on Road</div>
+
+    <!-- 설정 버튼 (우하단 절대위치) -->
+    <button class="settings-btn" onclick="App.showSettings()">⚙️</button>
 
   </div>
 
