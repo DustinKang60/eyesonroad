@@ -3,239 +3,403 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#080810">
+<meta name="theme-color" content="#06060E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="전방주시철저">
 <link rel="manifest" href="manifest.json">
 <title>전방주시철저 · Eyes on Road</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@300;400;700;900&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:#080810; --border:rgba(255,255,255,0.08);
-  --green:#00E676; --yellow:#FFD600; --red:#FF3D57;
-  --dim:rgba(255,255,255,0.25); --mid:rgba(255,255,255,0.55); --accent:#FFD600;
+  --bg:    #06060E;
+  --bg2:   #0D0D1C;
+  --border: rgba(255,255,255,0.07);
+  --G: #00E676; --Y: #FFD600; --R: #FF3D57;
+  --dim: rgba(255,255,255,0.22);
+  --mid: rgba(255,255,255,0.50);
+  --accent: #FFD600;
 }
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'Noto Sans KR',sans-serif;overflow:hidden;position:fixed;}
-.app{width:100%;max-width:480px;height:100vh;margin:0 auto;position:relative;overflow:hidden;display:flex;flex-direction:column;}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body {
+  height:100%; width:100%;
+  background:var(--bg); color:#fff;
+  font-family:'Noto Sans KR', sans-serif;
+  overflow:hidden; position:fixed;
+}
 
-/* 화면 전환 */
-.screen{position:absolute;inset:0;display:flex;flex-direction:column;transition:transform 0.35s cubic-bezier(.4,0,.2,1),opacity 0.35s ease;}
-.screen.hidden{transform:translateX(100%);opacity:0;pointer-events:none;}
+/* ━━━━━ 화면 전환 ━━━━━ */
+.screen {
+  width:100%; max-width:420px; height:100svh;
+  margin:0 auto;
+  display:flex; flex-direction:column;
+  position:absolute; top:0; left:0; right:0;
+  overflow:hidden;
+  transition:transform 0.32s cubic-bezier(.4,0,.2,1), opacity 0.32s;
+}
+.screen.hidden { transform:translateX(100%); opacity:0; pointer-events:none; }
 
-/* ── 지도 영역: 고정 픽셀 높이 (WhatEat 방식) ── */
-.map-wrap{position:relative;width:100%;height:500px;flex-shrink:0;background:#111120;overflow:hidden;}
-#kakaoMap{width:100%;height:500px;display:block;}
+/* ━━━━━ STATUS BAR ━━━━━ */
+.status-bar {
+  flex-shrink:0;
+  padding:10px 18px 6px;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.status-left { display:flex; align-items:center; gap:8px; }
+.app-name { font-size:11px; font-weight:900; color:var(--accent); letter-spacing:0.04em; }
+.sep { width:1px; height:10px; background:var(--border); }
+.region-tag {
+  font-size:9px; color:var(--mid);
+  background:rgba(255,255,255,0.06); border:1px solid var(--border);
+  border-radius:20px; padding:2px 8px; letter-spacing:0.06em;
+}
+.status-right { display:flex; gap:6px; align-items:center; }
+.pill {
+  font-size:9px; letter-spacing:0.05em; padding:3px 8px; border-radius:20px;
+  border:1px solid var(--border); color:var(--mid); background:rgba(255,255,255,0.04);
+  display:flex; align-items:center; gap:4px;
+}
+.pill.gps-on  { color:var(--G); border-color:rgba(0,230,118,0.3); background:rgba(0,230,118,0.07); }
+.pill.gps-off { color:var(--R); border-color:rgba(255,61,87,0.3);  background:rgba(255,61,87,0.07); }
+@keyframes gpsBlink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.pill.gps-on { animation:gpsBlink 2s ease-in-out infinite; }
 
-/* 지도 상단 바 */
-.map-top{position:absolute;top:0;left:0;right:0;padding:10px 14px 0;background:linear-gradient(to bottom,rgba(8,8,16,0.9) 0%,transparent 100%);z-index:10;display:flex;justify-content:space-between;align-items:center;}
-.app-brand-name{font-size:13px;font-weight:900;color:var(--accent);letter-spacing:-0.01em;}
-.app-brand-sub{font-size:9px;color:var(--dim);letter-spacing:0.08em;margin-top:1px;}
-.map-chips{display:flex;gap:6px;align-items:center;}
-.chip{background:rgba(8,8,16,0.78);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:11px;color:var(--mid);backdrop-filter:blur(8px);display:flex;align-items:center;gap:3px;}
-.chip b{font-family:'Bebas Neue';font-size:15px;color:#fff;}
-.chip-gps{background:rgba(0,230,118,0.12);border-color:rgba(0,230,118,0.3);color:var(--green);font-size:10px;}
-.chip-gps.off{background:rgba(255,61,87,0.12);border-color:rgba(255,61,87,0.3);color:var(--red);}
-@keyframes gpsBlink{0%,100%{opacity:1}50%{opacity:0.45}}
-.chip-gps.on{animation:gpsBlink 2s ease-in-out infinite;}
+/* ━━━━━ MAIN SIGNAL ━━━━━ */
+.signal-main {
+  flex-shrink:0;
+  padding:0 18px 10px;
+  display:flex; flex-direction:column;
+  align-items:center; position:relative;
+}
+.tl-row { display:flex; gap:10px; align-items:center; margin-bottom:6px; }
+.bulb { width:16px; height:16px; border-radius:50%; transition:box-shadow 0.4s, opacity 0.4s; }
+.b-r { background:var(--R); opacity:0.15; }
+.b-y { background:var(--Y); opacity:0.15; }
+.b-g { background:var(--G); opacity:0.15; }
+.b-r.on { opacity:1; box-shadow:0 0 8px var(--R), 0 0 16px rgba(255,61,87,0.4); }
+.b-y.on { opacity:1; box-shadow:0 0 8px var(--Y), 0 0 16px rgba(255,214,0,0.4); }
+.b-g.on { opacity:1; box-shadow:0 0 8px var(--G), 0 0 16px rgba(0,230,118,0.4); }
+.tl-label { font-size:9px; color:var(--dim); letter-spacing:0.1em; text-transform:uppercase; }
 
-/* ── 지도 위 신호 오버레이 ── */
-.map-signal-overlay{position:absolute;bottom:0;left:0;right:0;padding:10px 16px 12px;background:linear-gradient(to top,rgba(8,8,16,0.97) 50%,transparent 100%);z-index:10;display:flex;align-items:flex-end;justify-content:space-between;}
-.cross-info{flex:1;}
-.cross-label{font-size:9px;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:2px;}
-.cross-name{font-size:13px;font-weight:700;letter-spacing:-0.01em;}
-.cross-dist{font-size:11px;color:var(--mid);margin-top:3px;}
-.map-signal-right{display:flex;align-items:center;gap:10px;flex-shrink:0;}
-.tl-wrap-sm{background:rgba(0,0,0,0.6);border:1px solid var(--border);border-radius:16px;padding:7px 5px;display:flex;flex-direction:column;gap:4px;}
-.tl-bulb-sm{width:16px;height:16px;border-radius:50%;transition:box-shadow 0.4s,opacity 0.4s;}
-.tl-r-sm{background:#FF3D57;opacity:0.15;}
-.tl-y-sm{background:#FFD600;opacity:0.15;}
-.tl-g-sm{background:#00E676;opacity:0.15;}
-.tl-r-sm.on{opacity:1;box-shadow:0 0 8px #FF3D57,0 0 16px rgba(255,61,87,0.5);}
-.tl-y-sm.on{opacity:1;box-shadow:0 0 8px #FFD600,0 0 16px rgba(255,214,0,0.5);}
-.tl-g-sm.on{opacity:1;box-shadow:0 0 8px #00E676,0 0 16px rgba(0,230,118,0.5);}
-.map-sig-num{font-family:'Bebas Neue';font-size:72px;line-height:1;letter-spacing:0.02em;transition:color 0.4s;color:var(--dim);text-shadow:0 0 30px currentColor;}
-.map-sig-num.green{color:var(--green);}
-.map-sig-num.yellow{color:var(--yellow);}
-.map-sig-num.red{color:var(--red);}
-.map-sig-unit{font-size:11px;color:var(--mid);text-align:center;margin-top:-4px;}
+.big-number {
+  font-family:'Bebas Neue';
+  font-size:clamp(110px, 28vw, 148px);
+  line-height:0.85; letter-spacing:0.02em;
+  color:var(--dim);
+  transition:color 0.4s, text-shadow 0.4s;
+  position:relative; z-index:1; user-select:none;
+}
+.big-number.green  { color:var(--G);  text-shadow:0 0 40px rgba(0,230,118,0.35); }
+.big-number.yellow { color:var(--Y);  text-shadow:0 0 40px rgba(255,214,0,0.35); }
+.big-number.red    { color:var(--R);  text-shadow:0 0 40px rgba(255,61,87,0.35); }
 
-/* ── 하단 신호 패널 ── */
-.signal-panel{flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:14px 18px 14px;position:relative;overflow:hidden;}
-.signal-panel::before{content:'';position:absolute;bottom:-80px;left:50%;transform:translateX(-50%);width:300px;height:200px;border-radius:50%;filter:blur(60px);opacity:0.08;pointer-events:none;transition:background 0.5s;}
-.signal-panel.green::before{background:var(--green);}
-.signal-panel.yellow::before{background:var(--yellow);}
-.signal-panel.red::before{background:var(--red);}
-.sig-main{display:flex;align-items:center;gap:16px;}
-.tl-wrap{background:rgba(0,0,0,0.45);border:1px solid var(--border);border-radius:22px;padding:10px 7px;display:flex;flex-direction:column;gap:6px;flex-shrink:0;}
-.tl-bulb{width:22px;height:22px;border-radius:50%;transition:box-shadow 0.4s,opacity 0.4s;}
-.tl-r{background:#FF3D57;opacity:0.15;}
-.tl-y{background:#FFD600;opacity:0.15;}
-.tl-g{background:#00E676;opacity:0.15;}
-.tl-r.on{opacity:1;box-shadow:0 0 12px #FF3D57,0 0 24px rgba(255,61,87,0.4);}
-.tl-y.on{opacity:1;box-shadow:0 0 12px #FFD600,0 0 24px rgba(255,214,0,0.4);}
-.tl-g.on{opacity:1;box-shadow:0 0 12px #00E676,0 0 24px rgba(0,230,118,0.4);}
-.sig-time-block{flex:1;}
-.sig-type-label{font-size:10px;color:var(--dim);letter-spacing:0.12em;text-transform:uppercase;}
-.sig-number{font-family:'Bebas Neue';font-size:100px;line-height:0.88;letter-spacing:0.02em;transition:color 0.4s;color:var(--dim);}
-.sig-number.green{color:var(--green);}
-.sig-number.yellow{color:var(--yellow);}
-.sig-number.red{color:var(--red);}
-.sig-seconds{font-size:15px;color:var(--mid);margin-top:4px;}
-.guide-box{border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:12px;transition:background 0.4s,border-color 0.4s;border:1px solid var(--border);background:rgba(255,255,255,0.04);}
-.guide-box.go{background:rgba(0,230,118,0.08);border-color:rgba(0,230,118,0.22);}
-.guide-box.caution{background:rgba(255,214,0,0.08);border-color:rgba(255,214,0,0.22);}
-.guide-box.stop{background:rgba(255,61,87,0.08);border-color:rgba(255,61,87,0.22);}
-.guide-emoji{font-size:26px;flex-shrink:0;}
-.guide-texts .g-main{font-size:14px;font-weight:700;letter-spacing:-0.01em;margin-bottom:2px;}
-.guide-texts .g-sub{font-size:11px;color:var(--mid);line-height:1.5;}
-.bottom-brand{font-size:9px;color:var(--dim);letter-spacing:0.12em;text-align:center;padding-bottom:20px;}
-.settings-btn{position:absolute;bottom:16px;right:18px;width:38px;height:38px;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer;transition:background 0.2s;z-index:30;}
-.settings-btn:active{background:rgba(255,255,255,0.14);}
+.glow-circle {
+  position:absolute; width:260px; height:260px; border-radius:50%;
+  filter:blur(70px); opacity:0; pointer-events:none; z-index:0;
+  transition:opacity 0.6s, background 0.6s;
+}
+.glow-circle.green  { opacity:0.09; background:var(--G); }
+.glow-circle.yellow { opacity:0.09; background:var(--Y); }
+.glow-circle.red    { opacity:0.09; background:var(--R); }
 
-/* GPS 오버레이 */
-.overlay{position:absolute;inset:0;background:rgba(8,8,16,0.93);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:200;transition:opacity 0.3s;}
-.overlay.hidden{opacity:0;pointer-events:none;}
-.overlay-icon{font-size:48px;}
-.overlay-title{font-size:18px;font-weight:700;}
-.overlay-sub{font-size:13px;color:var(--mid);text-align:center;line-height:1.6;padding:0 24px;}
-.overlay-btn{margin-top:8px;padding:12px 28px;background:var(--accent);border:none;border-radius:12px;color:#000;font-size:14px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;}
+.sec-label {
+  font-size:14px; color:var(--mid);
+  letter-spacing:0.08em; margin-top:-4px; margin-bottom:4px;
+  position:relative; z-index:1;
+}
 
-/* ── 설정 화면 ── */
-.settings-screen{background:var(--bg);}
-.set-header{padding:18px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;}
-.set-title{font-size:20px;font-weight:900;color:var(--accent);}
-.set-subtitle{font-size:11px;color:var(--dim);letter-spacing:0.05em;margin-top:2px;}
-.back-btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:10px;padding:8px 14px;color:var(--mid);font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:0.2s;}
-.back-btn:active{background:rgba(255,255,255,0.14);}
-.set-body{flex:1;overflow-y:auto;padding:16px 20px 24px;scrollbar-width:none;}
-.set-body::-webkit-scrollbar{display:none;}
-.set-section{margin-bottom:22px;}
-.set-section-title{font-size:10px;font-weight:700;color:var(--dim);letter-spacing:0.14em;text-transform:uppercase;margin-bottom:10px;padding-left:4px;}
-.set-item{background:#0f0f1a;border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
-.set-item-col{flex-direction:column!important;align-items:flex-start!important;}
-.set-item-icon{font-size:18px;margin-bottom:4px;}
-.set-item-name{font-size:14px;font-weight:700;margin-bottom:2px;}
-.set-item-desc{font-size:11px;color:var(--mid);line-height:1.4;}
-.toggle{position:relative;width:46px;height:26px;flex-shrink:0;cursor:pointer;}
-.toggle input{opacity:0;width:0;height:0;}
-.toggle-track{position:absolute;inset:0;background:rgba(255,255,255,0.12);border-radius:99px;transition:background 0.3s;}
-.toggle input:checked+.toggle-track{background:var(--green);}
-.toggle-thumb{position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4);transition:transform 0.3s;}
-.toggle input:checked~.toggle-thumb{transform:translateX(20px);}
-.set-slider-wrap{width:100%;margin-top:10px;}
-.set-slider{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:rgba(255,255,255,0.12);border-radius:99px;outline:none;cursor:pointer;}
-.set-slider::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px rgba(255,214,0,0.5);cursor:pointer;}
-.slider-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);margin-top:5px;}
-.slider-val{text-align:center;font-family:'Bebas Neue';font-size:22px;color:var(--accent);margin-top:4px;}
-.radio-group{display:flex;flex-direction:column;gap:6px;margin-top:10px;width:100%;}
-.radio-item{display:flex;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:background 0.2s,border-color 0.2s;}
-.radio-item.selected{background:rgba(255,214,0,0.08);border-color:rgba(255,214,0,0.35);}
-.radio-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--dim);flex-shrink:0;transition:background 0.2s,border-color 0.2s;}
-.radio-item.selected .radio-dot{background:var(--accent);border-color:var(--accent);}
-.radio-txt{font-size:13px;color:var(--mid);}
-.radio-item.selected .radio-txt{color:#fff;font-weight:700;}
-.save-btn{width:100%;padding:15px;background:var(--accent);border:none;border-radius:14px;color:#000;font-size:15px;font-weight:900;font-family:'Noto Sans KR',sans-serif;cursor:pointer;transition:opacity 0.2s,transform 0.1s;margin-top:8px;}
-.save-btn:active{opacity:0.85;transform:scale(0.98);}
-.set-footer{padding:12px 20px 20px;text-align:center;flex-shrink:0;border-top:1px solid var(--border);}
-.set-footer-brand{font-size:11px;color:var(--dim);letter-spacing:0.08em;}
-.set-footer-ver{font-size:10px;color:rgba(255,255,255,0.15);margin-top:3px;}
+/* ━━━━━ PROGRESS RING ━━━━━ */
+.ring-wrap { position:relative; width:64px; height:64px; flex-shrink:0; margin:0 auto 2px; }
+.ring-svg { transform:rotate(-90deg); }
+.ring-bg   { fill:none; stroke:rgba(255,255,255,0.06); stroke-width:4; }
+.ring-fill {
+  fill:none; stroke-width:4; stroke-linecap:round;
+  stroke-dasharray:163; stroke-dashoffset:163;
+  transition:stroke-dashoffset 0.8s ease, stroke 0.4s;
+}
+.ring-fill.green  { stroke:var(--G); }
+.ring-fill.yellow { stroke:var(--Y); }
+.ring-fill.red    { stroke:var(--R); }
+.ring-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.ring-pct { font-family:'Bebas Neue'; font-size:20px; line-height:1; }
+.ring-pct.green  { color:var(--G); }
+.ring-pct.yellow { color:var(--Y); }
+.ring-pct.red    { color:var(--R); }
+.ring-pct-label { font-size:7px; color:var(--dim); letter-spacing:0.08em; }
+
+/* ━━━━━ GUIDE ━━━━━ */
+.guide-box {
+  margin:0 18px; border-radius:14px; padding:12px 16px;
+  border:1px solid var(--border); background:rgba(255,255,255,0.03);
+  transition:background 0.4s, border-color 0.4s;
+  display:flex; align-items:flex-start; gap:12px; flex-shrink:0;
+}
+.guide-box.go      { background:rgba(0,230,118,0.07);  border-color:rgba(0,230,118,0.2); }
+.guide-box.caution { background:rgba(255,214,0,0.07);  border-color:rgba(255,214,0,0.2); }
+.guide-box.stop    { background:rgba(255,61,87,0.07);  border-color:rgba(255,61,87,0.2); }
+.guide-icon { font-size:22px; flex-shrink:0; margin-top:1px; }
+.guide-main { font-size:14px; font-weight:700; letter-spacing:-0.01em; margin-bottom:3px; }
+.guide-sub  { font-size:11px; color:var(--mid); line-height:1.55; }
+
+/* ━━━━━ INTERSECTION INFO ━━━━━ */
+.itst-info {
+  margin:10px 18px 0;
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:14px; padding:12px 16px;
+  display:flex; justify-content:space-between; align-items:center;
+  flex-shrink:0;
+}
+.itst-label { font-size:9px; color:var(--dim); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:4px; }
+.itst-name  {
+  font-family:'Bebas Neue';
+  font-size:30px; line-height:1; letter-spacing:0.01em;
+}
+.itst-region { font-size:10px; color:var(--mid); margin-top:3px; }
+.itst-right {
+  text-align:right; flex-shrink:0;
+  padding-left:14px; border-left:1px solid var(--border); margin-left:14px;
+}
+.dist-big   { font-family:'Bebas Neue'; font-size:30px; line-height:1; color:var(--G); transition:color 0.4s; }
+.dist-big.near { color:var(--Y); }
+.dist-unit  { font-size:9px; color:var(--mid); }
+
+/* ━━━━━ INFO ROW ━━━━━ */
+.info-row { margin:10px 18px 0; display:flex; gap:8px; }
+.info-card {
+  flex:1; background:var(--bg2); border:1px solid var(--border);
+  border-radius:12px; padding:10px 14px;
+  display:flex; flex-direction:column; gap:2px;
+}
+.info-lbl { font-size:9px; color:var(--dim); letter-spacing:0.1em; text-transform:uppercase; }
+.info-val  { font-family:'Bebas Neue'; font-size:26px; line-height:1; }
+.info-val b { font-family:'Noto Sans KR'; font-size:10px; font-weight:400; color:var(--mid); vertical-align:middle; }
+.info-hint { font-size:10px; color:var(--mid); }
+.info-hint.ok   { color:var(--G); }
+.info-hint.warn { color:var(--Y); }
+.next-name { font-family:'Noto Sans KR'; font-size:13px; font-weight:700; line-height:1.2; }
+.next-sub  { font-size:11px; color:var(--mid); }
+
+/* ━━━━━ BOTTOM BAR ━━━━━ */
+.bottom-bar {
+  flex-shrink:0; margin-top:auto;
+  padding:10px 18px 20px;
+  display:flex; justify-content:space-between; align-items:center;
+  border-top:1px solid var(--border);
+}
+.brand-txt { font-size:9px; color:var(--dim); letter-spacing:0.1em; }
+.settings-btn {
+  width:36px; height:36px; border-radius:50%;
+  background:rgba(255,255,255,0.06); border:1px solid var(--border);
+  display:flex; align-items:center; justify-content:center;
+  font-size:15px; cursor:pointer; transition:background 0.2s;
+}
+.settings-btn:active { background:rgba(255,255,255,0.12); }
+
+/* ━━━━━ GPS 오버레이 ━━━━━ */
+.gps-overlay {
+  position:absolute; inset:0;
+  background:rgba(6,6,14,0.94);
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:14px; z-index:300; transition:opacity 0.3s;
+}
+.gps-overlay.hidden { opacity:0; pointer-events:none; }
+.ov-icon  { font-size:48px; }
+.ov-title { font-size:18px; font-weight:700; }
+.ov-sub   { font-size:13px; color:var(--mid); text-align:center; line-height:1.6; padding:0 28px; }
+.ov-btn   {
+  margin-top:8px; padding:12px 28px;
+  background:var(--accent); border:none; border-radius:12px;
+  color:#000; font-size:14px; font-weight:700;
+  font-family:'Noto Sans KR',sans-serif; cursor:pointer;
+}
+
+/* ━━━━━ 설정 화면 ━━━━━ */
+.set-header {
+  flex-shrink:0; padding:16px 18px 12px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.set-title    { font-size:20px; font-weight:900; color:var(--accent); }
+.set-subtitle { font-size:10px; color:var(--dim); letter-spacing:0.05em; margin-top:2px; }
+.back-btn {
+  background:rgba(255,255,255,0.07); border:1px solid var(--border);
+  border-radius:10px; padding:8px 14px;
+  color:var(--mid); font-size:12px; cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif;
+}
+.back-btn:active { background:rgba(255,255,255,0.14); }
+
+.set-body { flex:1; overflow-y:auto; padding:16px 18px 20px; scrollbar-width:none; }
+.set-body::-webkit-scrollbar { display:none; }
+
+.set-section { margin-bottom:22px; }
+.set-section-title {
+  font-size:10px; font-weight:700; color:var(--dim);
+  letter-spacing:0.14em; text-transform:uppercase;
+  margin-bottom:10px; padding-left:2px;
+}
+.set-item {
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:14px; padding:14px 16px; margin-bottom:8px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+}
+.set-item-col { flex-direction:column!important; align-items:flex-start!important; }
+.set-item-icon { font-size:16px; margin-bottom:4px; }
+.set-item-name { font-size:14px; font-weight:700; margin-bottom:2px; }
+.set-item-desc { font-size:11px; color:var(--mid); line-height:1.5; }
+
+.toggle { position:relative; width:46px; height:26px; flex-shrink:0; cursor:pointer; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle-track { position:absolute; inset:0; background:rgba(255,255,255,0.12); border-radius:99px; transition:background 0.3s; }
+.toggle input:checked + .toggle-track { background:var(--G); }
+.toggle-thumb { position:absolute; top:3px; left:3px; width:20px; height:20px; background:#fff; border-radius:50%; box-shadow:0 1px 4px rgba(0,0,0,0.4); transition:transform 0.3s; }
+.toggle input:checked ~ .toggle-thumb { transform:translateX(20px); }
+
+.set-slider-wrap { width:100%; margin-top:10px; }
+.set-slider { width:100%; height:4px; -webkit-appearance:none; appearance:none; background:rgba(255,255,255,0.12); border-radius:99px; outline:none; cursor:pointer; }
+.set-slider::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--accent); box-shadow:0 0 8px rgba(255,214,0,0.5); cursor:pointer; }
+.slider-labels { display:flex; justify-content:space-between; font-size:10px; color:var(--dim); margin-top:5px; }
+.slider-val { text-align:center; font-family:'Bebas Neue'; font-size:22px; color:var(--accent); margin-top:4px; }
+
+.radio-group { display:flex; flex-direction:column; gap:6px; margin-top:10px; width:100%; }
+.radio-item {
+  display:flex; align-items:center; gap:10px; padding:9px 12px;
+  background:rgba(255,255,255,0.04); border:1px solid var(--border);
+  border-radius:10px; cursor:pointer; transition:0.2s;
+}
+.radio-item.sel { background:rgba(255,214,0,0.08); border-color:rgba(255,214,0,0.35); }
+.radio-dot { width:14px; height:14px; border-radius:50%; border:2px solid var(--dim); flex-shrink:0; transition:0.2s; }
+.radio-item.sel .radio-dot { background:var(--accent); border-color:var(--accent); }
+.radio-txt { font-size:13px; color:var(--mid); }
+.radio-item.sel .radio-txt { color:#fff; font-weight:700; }
+
+.save-btn {
+  width:100%; padding:15px; background:var(--accent); border:none; border-radius:14px;
+  color:#000; font-size:15px; font-weight:900;
+  font-family:'Noto Sans KR',sans-serif; cursor:pointer; margin-top:4px;
+}
+.save-btn:active { opacity:0.85; transform:scale(0.99); }
+
+.set-footer { flex-shrink:0; padding:10px 18px 20px; text-align:center; border-top:1px solid var(--border); }
+.set-footer-brand { font-size:11px; color:var(--dim); letter-spacing:0.08em; }
+.set-footer-ver   { font-size:10px; color:rgba(255,255,255,0.12); margin-top:3px; }
 </style>
 </head>
 <body>
-<div class="app">
 
-<!-- ① 메인 화면 -->
+<!-- ① 메인 주행 화면 -->
 <div class="screen" id="mainScreen">
 
-  <div class="map-wrap">
-    <div id="kakaoMap"></div>
-
-    <!-- 지도 상단 -->
-    <div class="map-top">
-      <div>
-        <div class="app-brand-name">전방주시철저</div>
-        <div class="app-brand-sub">Eyes on Road · 작은앱공방</div>
-      </div>
-      <div class="map-chips">
-        <div class="chip">🚗 <b id="speedVal">--</b> km/h</div>
-        <div class="chip chip-gps" id="gpsChip">● GPS</div>
-      </div>
+  <div class="status-bar">
+    <div class="status-left">
+      <div class="app-name">전방주시철저</div>
+      <div class="sep"></div>
+      <div class="region-tag">서울</div>
     </div>
+    <div class="status-right">
+      <div class="pill">🚗 <span id="speedVal">--</span> km/h</div>
+      <div class="pill gps-off" id="gpsPill">● GPS</div>
+    </div>
+  </div>
 
-    <!-- 지도 위 신호 오버레이 (교차로 정보 + 신호등 + 큰 숫자) -->
-    <div class="map-signal-overlay">
-      <div class="cross-info">
-        <div class="cross-label">전방 교차로</div>
-        <div class="cross-name" id="crossName">위치 확인 중...</div>
-        <div class="cross-dist" id="crossDist"></div>
-      </div>
-      <div class="map-signal-right">
-        <div class="tl-wrap-sm">
-          <div class="tl-bulb-sm tl-r-sm" id="tlRsm"></div>
-          <div class="tl-bulb-sm tl-y-sm" id="tlYsm"></div>
-          <div class="tl-bulb-sm tl-g-sm" id="tlGsm"></div>
-        </div>
-        <div>
-          <div class="map-sig-num" id="mapSigNum">--</div>
-          <div class="map-sig-unit">초 남음</div>
-        </div>
+  <div class="signal-main">
+    <div class="glow-circle" id="glowCircle"></div>
+    <div class="tl-row">
+      <div class="bulb b-r" id="bR"></div>
+      <div class="bulb b-y" id="bY"></div>
+      <div class="bulb b-g" id="bG"></div>
+      <span class="tl-label">직진 신호</span>
+    </div>
+    <div class="big-number" id="bigNum">--</div>
+    <div class="sec-label">초 남음</div>
+    <div class="ring-wrap">
+      <svg class="ring-svg" width="64" height="64" viewBox="0 0 64 64">
+        <circle class="ring-bg" cx="32" cy="32" r="26"/>
+        <circle class="ring-fill" id="ringFill" cx="32" cy="32" r="26"/>
+      </svg>
+      <div class="ring-center">
+        <div class="ring-pct" id="ringPct">--%</div>
+        <div class="ring-pct-label">잔여</div>
       </div>
     </div>
   </div>
 
-  <!-- 하단 신호 패널 -->
-  <div class="signal-panel" id="signalPanel">
-    <div class="sig-main">
-      <div class="tl-wrap">
-        <div class="tl-bulb tl-r" id="tlR"></div>
-        <div class="tl-bulb tl-y" id="tlY"></div>
-        <div class="tl-bulb tl-g" id="tlG"></div>
-      </div>
-      <div class="sig-time-block">
-        <div class="sig-type-label">직진 신호 잔여시간</div>
-        <div class="sig-number" id="sigNum">--</div>
-        <div class="sig-seconds">초 남음</div>
-      </div>
+  <div class="guide-box" id="guideBox">
+    <div class="guide-icon" id="guideIcon">📡</div>
+    <div>
+      <div class="guide-main" id="guideMain">신호 데이터 수신 중...</div>
+      <div class="guide-sub"  id="guideSub">전방 교차로를 탐색하고 있습니다</div>
     </div>
-
-    <div class="guide-box" id="guideBox">
-      <div class="guide-emoji" id="guideEmoji">📡</div>
-      <div class="guide-texts">
-        <div class="g-main" id="guideMain">신호 데이터 수신 중...</div>
-        <div class="g-sub"  id="guideSub">전방 교차로를 탐색하고 있습니다</div>
-      </div>
-    </div>
-
-    <div class="bottom-brand">작은앱공방 · Eyes on Road</div>
-    <button class="settings-btn" onclick="App.showSettings()">⚙️</button>
   </div>
 
-  <div class="overlay" id="gpsOverlay">
-    <div class="overlay-icon">📍</div>
-    <div class="overlay-title">위치 권한 필요</div>
-    <div class="overlay-sub">전방 교차로 신호를 확인하려면<br>위치 접근 권한이 필요합니다.</div>
-    <button class="overlay-btn" onclick="window.location.reload()">위치 권한 허용</button>
+  <div class="itst-info">
+    <div style="flex:1; min-width:0;">
+      <div class="itst-label">전방 교차로</div>
+      <div class="itst-name" id="itName">탐색 중...</div>
+      <div class="itst-region" id="itRegion">📍 서울</div>
+    </div>
+    <div class="itst-right">
+      <div class="dist-big" id="distNum">--</div>
+      <div class="dist-unit">m 전방</div>
+    </div>
   </div>
-</div>
+
+  <div class="info-row">
+    <div class="info-card">
+      <div class="info-lbl">현재 속도</div>
+      <div class="info-val"><span id="mySpeedVal">--</span> <b>km/h</b></div>
+      <div class="info-hint" id="speedHint">GPS 수신 중</div>
+    </div>
+    <div class="info-card">
+      <div class="info-lbl">제한 속도</div>
+      <div class="info-val"><span id="limitVal">--</span> <b>km/h</b></div>
+      <div class="info-hint">이하로 주행</div>
+    </div>
+    <div class="info-card">
+      <div class="info-lbl">다음 교차로</div>
+      <div style="flex:1; display:flex; flex-direction:column; justify-content:center; min-height:30px;">
+        <div class="next-name" id="nextName">-</div>
+      </div>
+      <div class="info-hint" id="nextDist">-- m</div>
+    </div>
+  </div>
+
+  <div class="bottom-bar">
+    <div class="brand-txt">작은앱공방 · 강종훈</div>
+    <div class="settings-btn" id="settingsBtn">⚙️</div>
+  </div>
+
+  <!-- GPS 권한 오버레이 -->
+  <div class="gps-overlay" id="gpsOverlay">
+    <div class="ov-icon">📍</div>
+    <div class="ov-title">위치 권한 필요</div>
+    <div class="ov-sub">전방 교차로 신호를 확인하려면<br>위치 접근 권한이 필요합니다.</div>
+    <button class="ov-btn" onclick="location.reload()">위치 권한 허용</button>
+  </div>
+
+</div><!-- /mainScreen -->
+
 
 <!-- ② 설정 화면 -->
-<div class="screen settings-screen hidden" id="settingsScreen">
+<div class="screen hidden" id="settingsScreen">
+
   <div class="set-header">
     <div>
       <div class="set-title">설정</div>
       <div class="set-subtitle">Eyes on Road · 작은앱공방</div>
     </div>
-    <button class="back-btn" onclick="App.hideSettings()">← 주행화면</button>
+    <button class="back-btn" id="backBtn">← 주행화면</button>
   </div>
+
   <div class="set-body">
+
     <div class="set-section">
-      <div class="set-section-title">⏱ 신호 임박 경고</div>
+      <div class="set-section-title">🔔 신호 임박 경고</div>
       <div class="set-item set-item-col">
-        <div class="set-item-icon">🔔</div>
+        <div class="set-item-icon">⏱</div>
         <div class="set-item-name">초록불 종료 경고 타이밍</div>
-        <div class="set-item-desc">초록불이 몇 초 남았을 때 경고를 울릴지 설정합니다.</div>
+        <div class="set-item-desc">초록불이 몇 초 남았을 때 경고할지 설정합니다.</div>
         <div class="set-slider-wrap">
           <input class="set-slider" type="range" min="3" max="10" value="5" id="warnSlider"
             oninput="document.getElementById('warnVal').textContent=this.value+'초 전'">
@@ -244,272 +408,412 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
         </div>
       </div>
     </div>
+
     <div class="set-section">
-      <div class="set-section-title">📣 알림 방식</div>
+      <div class="set-section-title">📣 경고 방식</div>
       <div class="set-item set-item-col">
         <div class="set-item-icon">🔊</div>
-        <div class="set-item-name">경고 방식 선택</div>
-        <div class="set-item-desc">신호 임박 시 알림 방식을 선택하세요.</div>
-        <div class="radio-group" id="alertRadioGroup">
-          <label class="radio-item selected" onclick="Settings.selectAlert(this,'sound')">
-            <div class="radio-dot"></div><span class="radio-txt">🔊 소리 + 화면 강조</span>
-          </label>
-          <label class="radio-item" onclick="Settings.selectAlert(this,'vibrate')">
+        <div class="set-item-name">신호 임박 시 알림 방식</div>
+        <div class="set-item-desc">경고음·진동·화면 강조 중 선택하세요.</div>
+        <div class="radio-group" id="alertGroup">
+          <div class="radio-item sel" data-val="sound">
+            <div class="radio-dot"></div><span class="radio-txt">🔊 경고음 + 화면 강조</span>
+          </div>
+          <div class="radio-item" data-val="vibrate">
             <div class="radio-dot"></div><span class="radio-txt">📳 진동 + 화면 강조</span>
-          </label>
-          <label class="radio-item" onclick="Settings.selectAlert(this,'visual')">
+          </div>
+          <div class="radio-item" data-val="visual">
             <div class="radio-dot"></div><span class="radio-txt">💡 화면 강조만</span>
-          </label>
+          </div>
         </div>
       </div>
     </div>
+
     <div class="set-section">
       <div class="set-section-title">🖥 화면</div>
       <div class="set-item">
         <div style="flex:1">
           <div class="set-item-icon">☀️</div>
           <div class="set-item-name">화면 꺼짐 방지</div>
-          <div class="set-item-desc">주행 중 화면이 자동으로 어두워지지 않도록 합니다.</div>
+          <div class="set-item-desc">주행 중 화면이 자동으로 꺼지지 않도록 합니다.</div>
         </div>
         <label class="toggle">
-          <input type="checkbox" id="noSleepToggle" checked onchange="Settings.toggleNoSleep(this.checked)">
-          <div class="toggle-track"></div><div class="toggle-thumb"></div>
+          <input type="checkbox" id="noSleepToggle" checked>
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
         </label>
       </div>
     </div>
-    <button class="save-btn" onclick="Settings.save()">설정 저장</button>
+
+    <button class="save-btn" id="saveBtn">설정 저장</button>
   </div>
+
   <div class="set-footer">
     <div class="set-footer-brand">작은앱공방 · 전방주시철저 Eyes on Road</div>
-    <div class="set-footer-ver">v1.1.0 · 강종훈</div>
+    <div class="set-footer-ver">v1.0.0 · 강종훈</div>
   </div>
-</div>
 
-</div><!-- /app -->
+</div><!-- /settingsScreen -->
+
 <script>
-const CONFIG={
-  KAKAO_APP_KEY:'2ced2e09ce293e7efb020df8229663be',
-  TDATA_API_KEY:'07d04542-6b93-4871-9ba1-2613e5ab0043',
-  TDATA_URL:'https://t-data.seoul.go.kr/apig/apiman-gateway/tapi/v2xSignalPhaseTimingInformation/1.0',
-  SIGNAL_FETCH_INTERVAL:3000,
-  WARN_SECONDS:5,
-  ALERT_TYPE:'sound',
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   설정값
+━━━━━━━━━━━━━━━━━━━━━━ */
+const CONFIG = {
+  TDATA_API_KEY: '07d04542-6b93-4871-9ba1-2613e5ab0043',
+  TDATA_URL: 'https://t-data.seoul.go.kr/apig/apiman-gateway/tapi/v2xSignalPhaseTimingInformation/1.0',
+  KAKAO_APP_KEY: '2ced2e09ce293e7efb020df8229663be',
+  SIGNAL_FETCH_INTERVAL: 3000,
+  WARN_SECONDS: 5,
+  ALERT_TYPE: 'sound',
 };
-const State={map:null,myMarker:null,kakaoReady:false,myPos:null,myHeading:null,mySpeed:0,nearestItst:null,signalColor:'none',signalSec:null,signalMax:null,warnFired:false,wakeLock:null,watchId:null,fetchTimer:null};
-const INTERSECTIONS=[
-  {itstId:4762,name:'강남대로·테헤란로 교차로',lat:37.4979,lng:127.0276},
-  {itstId:4760,name:'강남대로·논현로 교차로',lat:37.5088,lng:127.0213},
-  {itstId:1850,name:'세종대로·태평로 교차로',lat:37.5713,lng:126.9769},
-  {itstId:2100,name:'종로·율곡로 교차로',lat:37.5747,lng:126.9895},
-  {itstId:3300,name:'올림픽대로·잠실대교 교차로',lat:37.5190,lng:127.0980},
-  {itstId:2500,name:'마포대로·공덕오거리 교차로',lat:37.5432,lng:126.9512},
-  {itstId:3100,name:'동작대로·사당로 교차로',lat:37.4764,lng:126.9816},
-  {itstId:4100,name:'송파대로·올림픽로 교차로',lat:37.5044,lng:127.1242},
-  {itstId:2600,name:'마포대로·마포역 교차로',lat:37.5375,lng:126.9515},
-  {itstId:2700,name:'여의대로·국회대로 교차로',lat:37.5280,lng:126.9240},
-  {itstId:1900,name:'통일로·독립문 교차로',lat:37.5724,lng:126.9610},
-  {itstId:3200,name:'강남대로·양재역 교차로',lat:37.4843,lng:127.0342},
+
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   상태
+━━━━━━━━━━━━━━━━━━━━━━ */
+const S = {
+  myPos: null, myHeading: null, mySpeed: 0,
+  nearestItst: null, secondItst: null,
+  signalColor: 'none', signalSec: null, signalMax: null,
+  warnFired: false, wakeLock: null,
+  watchId: null, fetchTimer: null,
+};
+
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   교차로 목록
+━━━━━━━━━━━━━━━━━━━━━━ */
+const INTERSECTIONS = [
+  { itstId:4762, name:'강남대로·테헤란로', region:'서울 강남구', speedLimit:60, lat:37.4979, lng:127.0276 },
+  { itstId:4760, name:'강남대로·논현로',   region:'서울 강남구', speedLimit:60, lat:37.5088, lng:127.0213 },
+  { itstId:1850, name:'세종대로·태평로',   region:'서울 중구',   speedLimit:60, lat:37.5713, lng:126.9769 },
+  { itstId:2100, name:'종로·율곡로',       region:'서울 종로구', speedLimit:50, lat:37.5747, lng:126.9895 },
+  { itstId:3300, name:'올림픽대로·잠실대교',region:'서울 송파구',speedLimit:80, lat:37.5190, lng:127.0980 },
+  { itstId:2500, name:'마포대로·공덕오거리',region:'서울 마포구',speedLimit:60, lat:37.5432, lng:126.9512 },
+  { itstId:3100, name:'동작대로·사당로',   region:'서울 동작구', speedLimit:60, lat:37.4764, lng:126.9816 },
+  { itstId:4100, name:'송파대로·올림픽로', region:'서울 송파구', speedLimit:60, lat:37.5044, lng:127.1242 },
+  { itstId:2600, name:'마포대로·마포역',   region:'서울 마포구', speedLimit:60, lat:37.5375, lng:126.9515 },
+  { itstId:2700, name:'여의대로·국회대로', region:'서울 영등포구',speedLimit:60, lat:37.5280, lng:126.9240 },
+  { itstId:1900, name:'통일로·독립문',     region:'서울 서대문구',speedLimit:60, lat:37.5724, lng:126.9610 },
+  { itstId:3200, name:'강남대로·양재역',   region:'서울 서초구', speedLimit:60, lat:37.4843, lng:127.0342 },
 ];
 
-function haversine(la1,lo1,la2,lo2){const R=6371000,dL=(la2-la1)*Math.PI/180,dO=(lo2-lo1)*Math.PI/180,a=Math.sin(dL/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dO/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
-function centisecToSec(cs){if(cs===null||cs===undefined||cs===''||cs<0)return null;return Math.round(cs/10);}
-function extractDirectionalStraight(data,heading){
-  if(!data)return null;
-  let dir='nt';
-  if(heading!==null){const h=((heading%360)+360)%360;if(h>=45&&h<135)dir='et';else if(h>=135&&h<225)dir='st';else if(h>=225&&h<315)dir='wt';}
-  const key=dir+'StsgRmdrCs';
-  if(data[key]!==null&&data[key]!==undefined&&data[key]!=='')return centisecToSec(data[key]);
-  for(const k of['ntStsgRmdrCs','stStsgRmdrCs','etStsgRmdrCs','wtStsgRmdrCs'])if(data[k]!==null&&data[k]!==undefined&&data[k]!=='')return centisecToSec(data[k]);
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   유틸
+━━━━━━━━━━━━━━━━━━━━━━ */
+const $ = id => document.getElementById(id);
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371000, d2r = Math.PI/180;
+  const dLat=(lat2-lat1)*d2r, dLng=(lng2-lng1)*d2r;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*d2r)*Math.cos(lat2*d2r)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function findNearest(lat, lng) {
+  const sorted = INTERSECTIONS.map(it => ({
+    ...it, dist: Math.round(haversine(lat, lng, it.lat, it.lng))
+  })).sort((a,b) => a.dist - b.dist);
+  return { nearest: sorted[0] || null, second: sorted[1] || null };
+}
+
+function centisecToSec(cs) {
+  if (cs === null || cs === undefined || cs === '' || cs < 0) return null;
+  return Math.round(cs / 10);
+}
+
+function extractStraightSec(data, heading) {
+  if (!data) return null;
+  let dir = 'nt';
+  if (heading !== null && heading !== undefined) {
+    const h = ((heading%360)+360)%360;
+    if (h>=45  && h<135) dir='et';
+    else if (h>=135 && h<225) dir='st';
+    else if (h>=225 && h<315) dir='wt';
+  }
+  const primary = data[dir+'StsgRmdrCs'];
+  if (primary !== null && primary !== undefined && primary !== '') return centisecToSec(primary);
+  for (const k of ['ntStsgRmdrCs','stStsgRmdrCs','etStsgRmdrCs','wtStsgRmdrCs']) {
+    if (data[k] !== null && data[k] !== undefined && data[k] !== '') return centisecToSec(data[k]);
+  }
   return null;
 }
-function findNearestIntersection(lat,lng){let nearest=null,minDist=Infinity;INTERSECTIONS.forEach(it=>{const d=haversine(lat,lng,it.lat,it.lng);if(d<minDist){minDist=d;nearest={...it,dist:Math.round(d)};}});return nearest;}
 
-/* WhatEat 방식 카카오 SDK 로딩 */
-function loadKakaoSDK(){
-  return new Promise(resolve=>{
-    if(State.kakaoReady){resolve();return;}
-    const s=document.createElement('script');
-    s.src=`//dapi.kakao.com/v2/maps/sdk.js?appkey=${CONFIG.KAKAO_APP_KEY}&libraries=services&autoload=false`;
-    s.onload=()=>{kakao.maps.load(()=>{State.kakaoReady=true;console.log('[카카오] 준비 완료');resolve();});};
-    s.onerror=()=>{console.error('[카카오] 로딩 실패');resolve();};
-    document.head.appendChild(s);
-  });
+function inferColor(data, sec) {
+  if (sec === null) return 'none';
+  for (const k of ['ntYlsgRmdrCs','stYlsgRmdrCs','etYlsgRmdrCs','wtYlsgRmdrCs']) {
+    if (data[k] && data[k] > 0) return 'yellow';
+  }
+  return sec > 0 ? 'green' : 'red';
 }
 
-function initMap(lat,lng){
-  if(!State.kakaoReady||State.map)return;
-  const container=document.getElementById('kakaoMap');
-  container.style.width='100%';
-  container.style.height='280px'; /* 인라인 고정 — WhatEat 방식 */
-  State.map=new kakao.maps.Map(container,{center:new kakao.maps.LatLng(lat,lng),level:5,draggable:true,scrollwheel:false,disableDoubleClickZoom:true});
-  State.map.relayout(); /* WhatEat 방식: 즉시 relayout */
-  State.map.setCenter(new kakao.maps.LatLng(lat,lng));
-  State.myMarker=new kakao.maps.Marker({position:new kakao.maps.LatLng(lat,lng),map:State.map});
-  INTERSECTIONS.forEach(it=>new kakao.maps.Marker({position:new kakao.maps.LatLng(it.lat,it.lng),map:State.map,title:it.name}));
-  console.log('[지도] 초기화 완료',lat,lng);
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   T-Data API
+━━━━━━━━━━━━━━━━━━━━━━ */
+async function fetchSignal(itstId) {
+  try {
+    const url = `${CONFIG.TDATA_URL}?apiKey=${CONFIG.TDATA_API_KEY}&type=json&pageNo=1&numOfRows=5&itstId=${itstId}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => null);
+    if (!json) return null;
+    let items = Array.isArray(json) ? json
+      : Array.isArray(json.data) ? json.data
+      : json.body?.items ? json.body.items
+      : [json];
+    if (!items?.length) return null;
+    return items.find(it => String(it.itstId) === String(itstId)) || items[0];
+  } catch(e) { return null; }
 }
 
-function updateMapPosition(lat,lng){
-  if(!State.map)return;
-  const pos=new kakao.maps.LatLng(lat,lng);
-  State.map.setCenter(pos);
-  if(State.myMarker)State.myMarker.setPosition(pos);
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   UI 업데이트
+━━━━━━━━━━━━━━━━━━━━━━ */
+function setSignalUI(sec, color) {
+  // 신호등 3구
+  ['bR','bY','bG'].forEach(id => $(id).classList.remove('on'));
+  if (color==='red')    $('bR').classList.add('on');
+  if (color==='yellow') $('bY').classList.add('on');
+  if (color==='green')  $('bG').classList.add('on');
+
+  // 큰 숫자
+  const num = $('bigNum');
+  num.textContent = sec !== null ? sec : '--';
+  num.className   = 'big-number' + (color!=='none' ? ' '+color : '');
+
+  // 글로우
+  $('glowCircle').className = 'glow-circle' + (color!=='none' ? ' '+color : '');
+
+  // 프로그레스 링
+  const pct = (sec!==null && S.signalMax>0) ? Math.round(sec/S.signalMax*100) : 0;
+  const ring = $('ringFill');
+  ring.style.strokeDashoffset = sec!==null ? (163 - 163*pct/100) : 163;
+  ring.className = 'ring-fill' + (color!=='none' ? ' '+color : '');
+  $('ringPct').textContent = sec!==null ? pct+'%' : '--%';
+  $('ringPct').className   = 'ring-pct' + (color!=='none' ? ' '+color : '');
+
+  // 가이드 박스
+  setGuideUI(color, sec);
+
+  // 경고
+  if (color==='green' && sec!==null && sec<=CONFIG.WARN_SECONDS && !S.warnFired) {
+    doWarn(); S.warnFired = true;
+  }
+  if (color!=='green') S.warnFired = false;
 }
 
-async function fetchSignal(itstId){
-  try{
-    const url=`${CONFIG.TDATA_URL}?apiKey=${CONFIG.TDATA_API_KEY}&type=json&pageNo=1&numOfRows=5&itstId=${itstId}`;
-    const res=await fetch(url);if(!res.ok)throw new Error('HTTP '+res.status);
-    const raw=await res.text();console.log('[T-Data]',raw.substring(0,200));
-    let json;try{json=JSON.parse(raw);}catch(e){return null;}
-    let items=null;
-    if(Array.isArray(json))items=json;
-    else if(Array.isArray(json.data))items=json.data;
-    else if(json.body?.items)items=json.body.items;
-    else if(typeof json==='object')items=[json];
-    if(!items||items.length===0)return null;
-    return items.find(it=>String(it.itstId)===String(itstId))||items[0];
-  }catch(e){console.warn('신호 API 오류:',e);return null;}
-}
+function setGuideUI(color, sec) {
+  const guide = $('guideBox');
+  const icon  = $('guideIcon');
+  const main  = $('guideMain');
+  const sub   = $('guideSub');
+  guide.className = 'guide-box';
+  const spd = S.mySpeed;
 
-function inferSignalColor(data,sec){
-  if(sec===null)return'none';
-  for(const k of['ntYlsgRmdrCs','stYlsgRmdrCs','etYlsgRmdrCs','wtYlsgRmdrCs'])if(data[k]&&data[k]>0)return'yellow';
-  return sec>0?'green':'red';
-}
-
-function updateSignalUI(sec,color){
-  const panel=document.getElementById('signalPanel');
-  const num=document.getElementById('sigNum');
-  const mapNum=document.getElementById('mapSigNum');
-  ['green','yellow','red','none'].forEach(c=>{panel.classList.remove(c);num.classList.remove(c);mapNum.classList.remove(c);});
-  panel.classList.add(color);num.classList.add(color);mapNum.classList.add(color);
-
-  /* 신호등 — 하단 패널 */
-  ['tlR','tlY','tlG'].forEach(id=>document.getElementById(id).classList.remove('on'));
-  if(color==='red')document.getElementById('tlR').classList.add('on');
-  if(color==='yellow')document.getElementById('tlY').classList.add('on');
-  if(color==='green')document.getElementById('tlG').classList.add('on');
-
-  /* 신호등 — 지도 오버레이 */
-  ['tlRsm','tlYsm','tlGsm'].forEach(id=>document.getElementById(id).classList.remove('on'));
-  if(color==='red')document.getElementById('tlRsm').classList.add('on');
-  if(color==='yellow')document.getElementById('tlYsm').classList.add('on');
-  if(color==='green')document.getElementById('tlGsm').classList.add('on');
-
-  /* 숫자 — 양쪽 모두 */
-  const d=sec!==null?sec:'--';
-  num.textContent=d; mapNum.textContent=d;
-
-  updateGuideUI(color,sec);
-  if(color==='green'&&sec!==null&&sec<=CONFIG.WARN_SECONDS&&!State.warnFired){triggerWarning();State.warnFired=true;}
-  if(color!=='green')State.warnFired=false;
-}
-
-function updateGuideUI(color,sec){
-  const guide=document.getElementById('guideBox');
-  const emoji=document.getElementById('guideEmoji');
-  const main=document.getElementById('guideMain');
-  const sub=document.getElementById('guideSub');
-  guide.className='guide-box';
-  const speed=State.mySpeed;
-  if(color==='green'){
-    guide.classList.add('go');emoji.textContent='✅';
-    if(sec!==null&&speed>0){const eta=State.nearestItst?Math.round(State.nearestItst.dist/(speed*1000/3600)):null;if(eta!==null&&eta<sec){main.textContent='현재 속도 유지 → 초록불 통과 가능';sub.textContent=`${speed} km/h 유지 · 약 ${eta}초 후 교차로 진입 예상`;}else{main.textContent='초록 신호 중';sub.textContent=`잔여 ${sec}초 · 속도를 확인하세요`;}}else{main.textContent='초록 신호 중';sub.textContent=sec!==null?`잔여 ${sec}초`:'신호 수신 중';}
-  }else if(color==='yellow'){
-    guide.classList.add('caution');emoji.textContent='⚠️';main.textContent='황색 신호 — 감속 준비하세요';sub.textContent='정지선에 안전하게 멈추세요';
-  }else if(color==='red'){
-    guide.classList.add('stop');emoji.textContent='🛑';main.textContent='적색 신호 — 정지';sub.textContent=sec!==null?`${sec}초 후 출발 가능`:'신호 대기 중';
-  }else{
-    emoji.textContent='📡';main.textContent='신호 데이터 수신 중...';sub.textContent='전방 교차로를 탐색하고 있습니다';
+  if (color === 'green') {
+    guide.classList.add('go'); icon.textContent = '✅';
+    if (sec!==null && spd>0 && S.nearestItst) {
+      const eta = Math.round(S.nearestItst.dist / (spd*1000/3600));
+      if (eta < sec) {
+        main.textContent = '현재 속도 유지 → 초록불 통과 가능';
+        sub.textContent  = `${spd} km/h 유지 · 약 ${eta}초 후 교차로 진입 예상`;
+      } else {
+        main.textContent = '초록 신호 중';
+        sub.textContent  = `잔여 ${sec}초 · 속도를 확인하세요`;
+      }
+    } else {
+      main.textContent = '초록 신호 중';
+      sub.textContent  = sec!==null ? `잔여 ${sec}초` : '신호 수신 중';
+    }
+  } else if (color === 'yellow') {
+    guide.classList.add('caution'); icon.textContent = '⚠️';
+    main.textContent = '황색 신호 — 지금 감속하세요';
+    sub.textContent  = '정지선에 안전하게 멈추세요';
+  } else if (color === 'red') {
+    guide.classList.add('stop'); icon.textContent = '🛑';
+    main.textContent = '적색 신호 — 정지';
+    sub.textContent  = sec!==null ? `${sec}초 후 출발 가능합니다` : '신호 대기 중';
+  } else {
+    icon.textContent = '📡';
+    main.textContent = '신호 데이터 수신 중...';
+    sub.textContent  = '전방 교차로를 탐색하고 있습니다';
   }
 }
 
-function updateDistanceUI(itst){
-  const nameEl=document.getElementById('crossName');
-  const distEl=document.getElementById('crossDist');
-  if(!itst){nameEl.textContent='교차로 탐색 중...';distEl.textContent='';return;}
-  nameEl.textContent=itst.name;
-  distEl.textContent=`↑ ${itst.dist}m 전방`;
+function setIntersectionUI(itst, second) {
+  if (!itst) {
+    $('itName').textContent   = '탐색 중...';
+    $('itRegion').textContent = '📍 서울';
+    $('distNum').textContent  = '--';
+    $('limitVal').textContent = '--';
+    $('nextName').textContent = '-';
+    $('nextDist').textContent = '-- m';
+    return;
+  }
+  $('itName').textContent    = itst.name;
+  $('itRegion').textContent  = '📍 ' + itst.region;
+  $('distNum').textContent   = itst.dist;
+  $('distNum').className     = 'dist-big' + (itst.dist < 150 ? ' near' : '');
+  $('limitVal').textContent  = itst.speedLimit;
+
+  if (second) {
+    $('nextName').textContent = second.name;
+    $('nextDist').textContent = second.dist + 'm';
+  } else {
+    $('nextName').textContent = '-';
+    $('nextDist').textContent = '-- m';
+  }
 }
 
-function triggerWarning(){
-  const type=CONFIG.ALERT_TYPE;
-  if(type==='vibrate'&&navigator.vibrate)navigator.vibrate([200,100,200]);
-  if(type==='sound'){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const osc=ctx.createOscillator();const gain=ctx.createGain();osc.connect(gain);gain.connect(ctx.destination);osc.frequency.value=880;osc.type='sine';gain.gain.setValueAtTime(0.3,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.5);osc.start();osc.stop(ctx.currentTime+0.5);}catch(e){}}
-  const panel=document.getElementById('signalPanel');panel.style.transition='none';panel.style.background='rgba(255,214,0,0.15)';setTimeout(()=>{panel.style.background='';panel.style.transition='';},400);
+function setSpeedUI(spd, color) {
+  $('speedVal').textContent    = spd;
+  $('mySpeedVal').textContent  = spd;
+  const hint = $('speedHint');
+  if (color === 'green') { hint.textContent='✓ 유지하세요'; hint.className='info-hint ok'; }
+  else if (color === 'yellow') { hint.textContent='⚠ 감속하세요'; hint.className='info-hint warn'; }
+  else { hint.textContent='GPS 수신 중'; hint.className='info-hint'; }
 }
 
-async function onPosition(position){
-  const{latitude:lat,longitude:lng,speed,heading}=position.coords;
-  State.myPos={lat,lng};State.mySpeed=speed?Math.round(speed*3.6):0;State.myHeading=heading;
-  const chip=document.getElementById('gpsChip');chip.classList.remove('off');chip.classList.add('on');chip.textContent='● GPS';
-  document.getElementById('speedVal').textContent=Math.round(State.mySpeed);
-  updateMapPosition(lat,lng);
-  const itst=findNearestIntersection(lat,lng);State.nearestItst=itst;updateDistanceUI(itst);
-  if(itst)await refreshSignal(itst.itstId);else updateSignalUI(null,'none');
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   경고음
+━━━━━━━━━━━━━━━━━━━━━━ */
+function doWarn() {
+  try {
+    if (CONFIG.ALERT_TYPE==='vibrate' && navigator.vibrate) navigator.vibrate([200,100,200]);
+    if (CONFIG.ALERT_TYPE==='sound') {
+      const ctx = new(window.AudioContext||window.webkitAudioContext)();
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value=880; osc.type='sine';
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.5);
+      osc.start(); osc.stop(ctx.currentTime+0.5);
+    }
+  } catch(e) {}
+  // 화면 플래시
+  const box = $('guideBox');
+  box.style.transition='none';
+  box.style.background='rgba(255,214,0,0.28)';
+  setTimeout(() => { box.style.background=''; box.style.transition=''; }, 350);
 }
 
-async function refreshSignal(itstId){
-  const data=await fetchSignal(itstId);
-  if(!data){updateSignalUI(null,'none');return;}
-  const sec=extractDirectionalStraight(data,State.myHeading);
-  const color=inferSignalColor(data,sec);
-  if(color!==State.signalColor){State.signalMax=sec;State.warnFired=false;}
-  if(sec!==null&&(State.signalMax===null||sec>State.signalMax))State.signalMax=sec;
-  State.signalColor=color;State.signalSec=sec;
-  updateSignalUI(sec,color);
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   GPS / 신호 루프
+━━━━━━━━━━━━━━━━━━━━━━ */
+async function onPosition(pos) {
+  const { latitude:lat, longitude:lng, speed, heading } = pos.coords;
+  S.myPos = { lat, lng };
+  S.mySpeed   = speed ? Math.round(speed*3.6) : 0;
+  S.myHeading = heading;
+
+  const gps = $('gpsPill');
+  gps.className = 'pill gps-on'; gps.textContent = '● GPS';
+
+  setSpeedUI(S.mySpeed, S.signalColor);
+
+  const { nearest, second } = findNearest(lat, lng);
+  S.nearestItst = nearest; S.secondItst = second;
+  setIntersectionUI(nearest, second);
+
+  if (nearest) await refreshSignal(nearest.itstId);
 }
 
-const App={
-  async requestWakeLock(){try{if('wakeLock'in navigator)State.wakeLock=await navigator.wakeLock.request('screen');}catch(e){}},
-  showSettings(){document.getElementById('settingsScreen').classList.remove('hidden');},
-  hideSettings(){document.getElementById('settingsScreen').classList.add('hidden');},
-};
-const Settings={
-  selectAlert(el,type){document.querySelectorAll('#alertRadioGroup .radio-item').forEach(r=>r.classList.remove('selected'));el.classList.add('selected');CONFIG.ALERT_TYPE=type;},
-  toggleNoSleep(checked){if(checked)App.requestWakeLock();else if(State.wakeLock){State.wakeLock.release();State.wakeLock=null;}},
-  save(){CONFIG.WARN_SECONDS=parseInt(document.getElementById('warnSlider').value);App.hideSettings();}
-};
+async function refreshSignal(itstId) {
+  const data = await fetchSignal(itstId);
+  if (!data) { setSignalUI(null,'none'); return; }
 
-/* 앱 시작 — WhatEat 방식 */
-window.addEventListener('load',async()=>{
-  if(!navigator.geolocation){alert('위치 서비스를 지원하지 않는 브라우저입니다.');return;}
+  const sec   = extractStraightSec(data, S.myHeading);
+  const color = inferColor(data, sec);
 
-  /* 1) 카카오 SDK 로딩 (동적 script + autoload=false + 콜백) */
-  await loadKakaoSDK();
+  if (color !== S.signalColor) { S.signalMax=sec; S.warnFired=false; }
+  if (sec!==null && (S.signalMax===null||sec>S.signalMax)) S.signalMax=sec;
+  S.signalColor=color; S.signalSec=sec;
 
-  /* 2) GPS 초기 위치 */
-  navigator.geolocation.getCurrentPosition(
-    async(pos)=>{
-      document.getElementById('gpsOverlay').classList.add('hidden');
-      const{latitude:lat,longitude:lng}=pos.coords;
-      State.myPos={lat,lng};
-      console.log('[GPS] 초기 위치',lat,lng);
+  setSignalUI(sec, color);
+  setSpeedUI(S.mySpeed, color);
+}
 
-      /* 3) 지도 초기화 (SDK + 위치 모두 준비 완료 후) */
-      initMap(lat,lng);
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   화면 전환
+━━━━━━━━━━━━━━━━━━━━━━ */
+$('settingsBtn').addEventListener('click', () => {
+  $('settingsScreen').classList.remove('hidden');
+});
+$('backBtn').addEventListener('click', () => {
+  $('settingsScreen').classList.add('hidden');
+  // 저장
+  CONFIG.WARN_SECONDS = parseInt($('warnSlider').value);
+  const sel = document.querySelector('#alertGroup .radio-item.sel');
+  if (sel) CONFIG.ALERT_TYPE = sel.dataset.val;
+  const noSleep = $('noSleepToggle').checked;
+  if (!noSleep && S.wakeLock) { S.wakeLock.release(); S.wakeLock=null; }
+  else if (noSleep && !S.wakeLock) requestWakeLock();
+});
+$('saveBtn').addEventListener('click', () => $('backBtn').click());
 
-      /* 4) 연속 위치 추적 */
-      State.watchId=navigator.geolocation.watchPosition(onPosition,err=>console.warn('GPS 오류:',err),{enableHighAccuracy:true,maximumAge:1000,timeout:5000});
-
-      /* 5) 신호 주기 갱신 */
-      State.fetchTimer=setInterval(async()=>{if(State.nearestItst)await refreshSignal(State.nearestItst.itstId);},CONFIG.SIGNAL_FETCH_INTERVAL);
-
-      App.requestWakeLock();
-    },
-    (err)=>{
-      console.warn('위치 접근 거부:',err);
-      document.getElementById('gpsOverlay').classList.remove('hidden');
-      const chip=document.getElementById('gpsChip');chip.classList.add('off');chip.textContent='● GPS 없음';
-    },
-    {enableHighAccuracy:true,timeout:15000}
-  );
-
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')App.requestWakeLock();});
+// 라디오 선택
+document.querySelectorAll('#alertGroup .radio-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('#alertGroup .radio-item').forEach(r=>r.classList.remove('sel'));
+    item.classList.add('sel');
+  });
 });
 
-if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   Wake Lock
+━━━━━━━━━━━━━━━━━━━━━━ */
+async function requestWakeLock() {
+  try { if('wakeLock' in navigator) S.wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   앱 시작
+━━━━━━━━━━━━━━━━━━━━━━ */
+window.addEventListener('load', async () => {
+  if (!navigator.geolocation) { alert('위치 서비스를 지원하지 않는 브라우저입니다.'); return; }
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      $('gpsOverlay').classList.add('hidden');
+      const { latitude:lat, longitude:lng } = pos.coords;
+      S.myPos = { lat, lng };
+      $('gpsPill').className = 'pill gps-on';
+      $('gpsPill').textContent = '● GPS';
+
+      // 초기 교차로 표시
+      const { nearest, second } = findNearest(lat, lng);
+      S.nearestItst = nearest; S.secondItst = second;
+      setIntersectionUI(nearest, second);
+      if (nearest) await refreshSignal(nearest.itstId);
+
+      // 연속 위치 추적
+      S.watchId = navigator.geolocation.watchPosition(
+        onPosition,
+        err => console.warn('GPS 오류:', err),
+        { enableHighAccuracy:true, maximumAge:1000, timeout:5000 }
+      );
+
+      // 신호 주기 갱신
+      S.fetchTimer = setInterval(async () => {
+        if (S.nearestItst) await refreshSignal(S.nearestItst.itstId);
+      }, CONFIG.SIGNAL_FETCH_INTERVAL);
+
+      requestWakeLock();
+    },
+    (err) => {
+      console.warn('위치 거부:', err);
+      $('gpsOverlay').classList.remove('hidden');
+      const gps = $('gpsPill');
+      gps.className='pill gps-off'; gps.textContent='● GPS 없음';
+    },
+    { enableHighAccuracy:true, timeout:15000 }
+  );
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState==='visible') requestWakeLock();
+  });
+});
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
 </html>
