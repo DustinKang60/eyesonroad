@@ -509,11 +509,48 @@ function haversine(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-function findNearest(lat, lng) {
-  const sorted = INTERSECTIONS.map(it => ({
-    ...it, dist: Math.round(haversine(lat, lng, it.lat, it.lng))
-  })).sort((a,b) => a.dist - b.dist);
-  return { nearest: sorted[0] || null, second: sorted[1] || null };
+const COVERAGE_RADIUS_M = 30000; // 서울 교차로 데이터 유효 반경 30km
+
+// 두 지점 간 방위각 계산 (0°=북, 시계방향)
+function bearing(lat1, lng1, lat2, lng2) {
+  const d2r = Math.PI/180;
+  const dLng = (lng2 - lng1) * d2r;
+  const y = Math.sin(dLng) * Math.cos(lat2*d2r);
+  const x = Math.cos(lat1*d2r)*Math.sin(lat2*d2r) - Math.sin(lat1*d2r)*Math.cos(lat2*d2r)*Math.cos(dLng);
+  return (Math.atan2(y, x) * 180/Math.PI + 360) % 360;
+}
+
+// 두 방위각의 각도 차이 (0~180)
+function angleDiff(a, b) {
+  const d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+function findNearest(lat, lng, heading) {
+  const candidates = INTERSECTIONS
+    .map(it => ({
+      ...it,
+      dist: Math.round(haversine(lat, lng, it.lat, it.lng)),
+      bear: bearing(lat, lng, it.lat, it.lng),
+    }))
+    .filter(it => it.dist <= COVERAGE_RADIUS_M);
+
+  if (!candidates.length) return { nearest: null, second: null, outOfCoverage: true };
+
+  // heading이 유효하면 전방 180° 필터 적용
+  let forward = candidates;
+  if (heading !== null && heading !== undefined) {
+    const front = candidates.filter(it => angleDiff(it.bear, heading) <= 90);
+    // 전방 90° 이내 없으면 180° 이내로 넓힘
+    const wide  = candidates.filter(it => angleDiff(it.bear, heading) <= 180);
+    forward = front.length ? front : (wide.length ? wide : candidates);
+  }
+
+  forward.sort((a,b) => a.dist - b.dist);
+  // "second"는 전체 후보에서 nearest 제외한 전방 다음 교차로
+  const nearest = forward[0] || null;
+  const second  = forward[1] || null;
+  return { nearest, second, outOfCoverage: false };
 }
 
 function centisecToSec(cs) {
@@ -632,6 +669,10 @@ function setGuideUI(color, sec) {
     guide.classList.add('stop'); icon.textContent = '🛑';
     main.textContent = '적색 신호 — 정지';
     sub.textContent  = sec!==null ? `${sec}초 후 출발 가능합니다` : '신호 대기 중';
+  } else if (color === 'oos') {
+    icon.textContent = '🗺️';
+    main.textContent = '서울 서비스 지역 밖입니다';
+    sub.textContent  = '현재 앱은 서울 C-ITS 교차로만 지원합니다';
   } else {
     icon.textContent = '📡';
     main.textContent = '신호 데이터 수신 중...';
@@ -639,11 +680,22 @@ function setGuideUI(color, sec) {
   }
 }
 
-function setIntersectionUI(itst, second) {
+function setIntersectionUI(itst, second, outOfCoverage) {
+  if (outOfCoverage) {
+    $('itName').textContent   = '서비스 지역 외';
+    $('itRegion').textContent = '📍 서울 이외 지역';
+    $('distNum').textContent  = '--';
+    $('distNum').className    = 'dist-big';
+    $('limitVal').textContent = '--';
+    $('nextName').textContent = '-';
+    $('nextDist').textContent = '-- m';
+    return;
+  }
   if (!itst) {
     $('itName').textContent   = '탐색 중...';
     $('itRegion').textContent = '📍 서울';
     $('distNum').textContent  = '--';
+    $('distNum').className    = 'dist-big';
     $('limitVal').textContent = '--';
     $('nextName').textContent = '-';
     $('nextDist').textContent = '-- m';
@@ -710,11 +762,16 @@ async function onPosition(pos) {
 
   setSpeedUI(S.mySpeed, S.signalColor);
 
-  const { nearest, second } = findNearest(lat, lng);
+  const { nearest, second, outOfCoverage } = findNearest(lat, lng, heading);
   S.nearestItst = nearest; S.secondItst = second;
-  setIntersectionUI(nearest, second);
+  setIntersectionUI(nearest, second, outOfCoverage);
 
-  if (nearest) await refreshSignal(nearest.itstId);
+  if (outOfCoverage) {
+    setSignalUI(null, 'none');
+    setGuideUI('oos', null);
+  } else if (nearest) {
+    await refreshSignal(nearest.itstId);
+  }
 }
 
 async function refreshSignal(itstId) {
@@ -780,10 +837,15 @@ window.addEventListener('load', async () => {
       $('gpsPill').textContent = '● GPS';
 
       // 초기 교차로 표시
-      const { nearest, second } = findNearest(lat, lng);
+      const { nearest, second, outOfCoverage } = findNearest(lat, lng, heading);
       S.nearestItst = nearest; S.secondItst = second;
-      setIntersectionUI(nearest, second);
-      if (nearest) await refreshSignal(nearest.itstId);
+      setIntersectionUI(nearest, second, outOfCoverage);
+      if (outOfCoverage) {
+        setSignalUI(null, 'none');
+        setGuideUI('oos', null);
+      } else if (nearest) {
+        await refreshSignal(nearest.itstId);
+      }
 
       // 연속 위치 추적
       S.watchId = navigator.geolocation.watchPosition(
