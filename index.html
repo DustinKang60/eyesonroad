@@ -40,6 +40,7 @@ html, body {
   transition:transform 0.32s cubic-bezier(.4,0,.2,1), opacity 0.32s;
 }
 .screen.hidden { transform:translateX(100%); opacity:0; pointer-events:none; }
+#settingsScreen { background:var(--bg); }
 
 /* ━━━━━ STATUS BAR ━━━━━ */
 .status-bar {
@@ -797,16 +798,25 @@ async function refreshSignal(itstId) {
 ━━━━━━━━━━━━━━━━━━━━━━ */
 $('settingsBtn').addEventListener('click', () => {
   $('settingsScreen').classList.remove('hidden');
+  history.pushState({page:'settings'}, '');
 });
-$('backBtn').addEventListener('click', () => {
+function closeSettings() {
   $('settingsScreen').classList.add('hidden');
-  // 저장
+  history.replaceState({page:'main'}, '');
   CONFIG.WARN_SECONDS = parseInt($('warnSlider').value);
   const sel = document.querySelector('#alertGroup .radio-item.sel');
   if (sel) CONFIG.ALERT_TYPE = sel.dataset.val;
   const noSleep = $('noSleepToggle').checked;
   if (!noSleep && S.wakeLock) { S.wakeLock.release(); S.wakeLock=null; }
   else if (noSleep && !S.wakeLock) requestWakeLock();
+}
+$('backBtn').addEventListener('click', closeSettings);
+
+// 하드웨어 뒤로가기
+window.addEventListener('popstate', () => {
+  if (!$('settingsScreen').classList.contains('hidden')) {
+    $('settingsScreen').classList.add('hidden');
+  }
 });
 $('saveBtn').addEventListener('click', () => $('backBtn').click());
 
