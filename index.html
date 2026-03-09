@@ -81,12 +81,14 @@ html, body {
 /* 카카오맵 영역 — 상단 45% */
 .map-wrap {
   flex:0 0 45%;
+  height:45vh;
   position:relative;
   background:#111120;
   overflow:hidden;
 }
 #kakaoMap {
-  width:100%; height:100%; min-height:200px;
+  width:100%; height:100%;
+  min-height:200px;
   display:block;
 }
 
@@ -721,11 +723,16 @@ function initMap(lat, lng) {
     disableDoubleClickZoom: true,
   };
   State.map = new kakao.maps.Map(container, options);
-  // 컨테이너 크기 재계산 (HTTPS/GitHub Pages에서 지도 안 뜨는 문제 방지)
+
+  // 컨테이너 실제 픽셀 높이를 명시적으로 설정 후 relayout
+  const mapWrap = container.parentElement;
+  const h = mapWrap.offsetHeight || window.innerHeight * 0.45;
+  container.style.height = h + 'px';
+
   setTimeout(() => {
     State.map.relayout();
     State.map.setCenter(new kakao.maps.LatLng(lat, lng));
-  }, 200);
+  }, 500);
 
   // 내 위치 마커
   const myImg = new kakao.maps.MarkerImage(
