@@ -67,6 +67,20 @@ html, body {
 @keyframes gpsBlink { 0%,100%{opacity:1} 50%{opacity:0.4} }
 .pill.gps-on { animation:gpsBlink 2s ease-in-out infinite; }
 
+/* ━━━━━ DB 로딩 배지 ━━━━━ */
+.db-badge {
+  font-size:9px; padding:3px 8px; border-radius:20px;
+  border:1px solid var(--border); color:var(--dim);
+  background:rgba(255,255,255,0.04);
+  display:flex; align-items:center; gap:4px;
+  transition:color 0.4s, border-color 0.4s, background 0.4s;
+}
+.db-badge.loading { color:var(--Y); border-color:rgba(255,214,0,0.3); background:rgba(255,214,0,0.07); }
+.db-badge.ready   { color:var(--G); border-color:rgba(0,230,118,0.3); background:rgba(0,230,118,0.07); }
+.db-badge.error   { color:var(--R); border-color:rgba(255,61,87,0.3);  background:rgba(255,61,87,0.07); }
+@keyframes spin { to { transform:rotate(360deg); } }
+.spin { display:inline-block; animation:spin 1s linear infinite; }
+
 /* ━━━━━ MAIN SIGNAL ━━━━━ */
 .signal-main {
   flex:1;
@@ -253,6 +267,23 @@ html, body {
 .set-item-name { font-size:14px; font-weight:700; margin-bottom:2px; }
 .set-item-desc { font-size:11px; color:var(--mid); line-height:1.5; }
 
+/* DB 상태 카드 */
+.db-status-card {
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:14px; padding:14px 16px; margin-bottom:8px;
+}
+.db-status-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.db-status-label { font-size:12px; font-weight:700; }
+.db-status-val { font-family:'Bebas Neue'; font-size:22px; color:var(--accent); }
+.db-status-sub { font-size:10px; color:var(--mid); }
+.db-reload-btn {
+  width:100%; margin-top:10px; padding:10px;
+  background:rgba(255,214,0,0.12); border:1px solid rgba(255,214,0,0.3);
+  border-radius:10px; color:var(--accent); font-size:12px; font-weight:700;
+  font-family:'Noto Sans KR',sans-serif; cursor:pointer;
+}
+.db-reload-btn:active { opacity:0.8; }
+
 .toggle { position:relative; width:46px; height:26px; flex-shrink:0; cursor:pointer; }
 .toggle input { opacity:0; width:0; height:0; }
 .toggle-track { position:absolute; inset:0; background:rgba(255,255,255,0.12); border-radius:99px; transition:background 0.3s; }
@@ -299,9 +330,10 @@ html, body {
     <div class="status-left">
       <div class="app-name">전방주시철저</div>
       <div class="sep"></div>
-      <div class="region-tag">서울</div>
+      <div class="region-tag" id="regionTag">서울</div>
     </div>
     <div class="status-right">
+      <div class="db-badge loading" id="dbBadge"><span class="spin">⟳</span> 교차로 DB</div>
       <div class="pill">🚗 <span id="speedVal">--</span> km/h</div>
       <div class="pill gps-off" id="gpsPill">● GPS</div>
     </div>
@@ -332,8 +364,8 @@ html, body {
   <div class="guide-box" id="guideBox">
     <div class="guide-icon" id="guideIcon">📡</div>
     <div>
-      <div class="guide-main" id="guideMain">신호 데이터 수신 중...</div>
-      <div class="guide-sub"  id="guideSub">전방 교차로를 탐색하고 있습니다</div>
+      <div class="guide-main" id="guideMain">교차로 DB 로딩 중...</div>
+      <div class="guide-sub"  id="guideSub">서울 C-ITS 교차로 정보를 불러오고 있습니다</div>
     </div>
   </div>
 
@@ -398,6 +430,34 @@ html, body {
 
   <div class="set-body">
 
+    <!-- 교차로 DB 현황 -->
+    <div class="set-section">
+      <div class="set-section-title">🗂 교차로 데이터베이스</div>
+      <div class="db-status-card">
+        <div class="db-status-row">
+          <div class="db-status-label">로딩된 교차로 수</div>
+          <div class="db-status-val" id="dbCount">0</div>
+        </div>
+        <div class="db-status-sub" id="dbStatusSub">서울 C-ITS API에서 동적으로 로딩합니다</div>
+        <button class="db-reload-btn" id="dbReloadBtn">🔄 교차로 DB 다시 불러오기</button>
+      </div>
+    </div>
+
+    <div class="set-section">
+      <div class="set-section-title">📍 탐색 반경</div>
+      <div class="set-item set-item-col">
+        <div class="set-item-icon">🎯</div>
+        <div class="set-item-name">전방 탐색 반경</div>
+        <div class="set-item-desc">현재 위치에서 몇 m 이내 교차로를 탐색할지 설정합니다.</div>
+        <div class="set-slider-wrap">
+          <input class="set-slider" type="range" min="200" max="2000" step="100" value="800" id="radiusSlider"
+            oninput="document.getElementById('radiusVal').textContent=this.value+'m'">
+          <div class="slider-labels"><span>200m</span><span>2,000m</span></div>
+          <div class="slider-val" id="radiusVal">800m</div>
+        </div>
+      </div>
+    </div>
+
     <div class="set-section">
       <div class="set-section-title">🔔 신호 임박 경고</div>
       <div class="set-item set-item-col">
@@ -454,7 +514,7 @@ html, body {
 
   <div class="set-footer">
     <div class="set-footer-brand">작은앱공방 · 전방주시철저 Eyes on Road</div>
-    <div class="set-footer-ver">v1.0.0 · 강종훈</div>
+    <div class="set-footer-ver">v2.0.0 · 강종훈 · 동적 교차로 DB</div>
   </div>
 
 </div><!-- /settingsScreen -->
@@ -465,11 +525,15 @@ html, body {
 ━━━━━━━━━━━━━━━━━━━━━━ */
 const CONFIG = {
   TDATA_API_KEY: '07d04542-6b93-4871-9ba1-2613e5ab0043',
-  TDATA_URL: 'https://t-data.seoul.go.kr/apig/apiman-gateway/tapi/v2xSignalPhaseTimingInformation/1.0',
-  KAKAO_APP_KEY: '2ced2e09ce293e7efb020df8229663be',
+  // 신호 잔여시간 API
+  SIGNAL_URL: 'https://t-data.seoul.go.kr/apig/apiman-gateway/tapi/v2xSignalPhaseTimingInformation/1.0',
+  // 교차로 목록(Map 정보) API
+  CROSSROAD_URL: 'https://t-data.seoul.go.kr/apig/apiman-gateway/tapi/v2xCrossroadMapInformation/1.0',
   SIGNAL_FETCH_INTERVAL: 3000,
   WARN_SECONDS: 5,
   ALERT_TYPE: 'sound',
+  SEARCH_RADIUS_M: 800,   // 전방 탐색 반경 (설정 변경 가능)
+  DB_PAGE_SIZE: 100,       // 한 번에 로딩할 교차로 수
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━
@@ -481,25 +545,11 @@ const S = {
   signalColor: 'none', signalSec: null, signalMax: null,
   warnFired: false, wakeLock: null,
   watchId: null, fetchTimer: null,
+  // 동적 교차로 DB
+  itstDB: [],          // [{itstId, name, lat, lng, speedLimit}]
+  dbLoaded: false,
+  dbLoading: false,
 };
-
-/* ━━━━━━━━━━━━━━━━━━━━━━
-   교차로 목록
-━━━━━━━━━━━━━━━━━━━━━━ */
-const INTERSECTIONS = [
-  { itstId:4762, name:'강남대로·테헤란로', region:'서울 강남구', speedLimit:60, lat:37.4979, lng:127.0276 },
-  { itstId:4760, name:'강남대로·논현로',   region:'서울 강남구', speedLimit:60, lat:37.5088, lng:127.0213 },
-  { itstId:1850, name:'세종대로·태평로',   region:'서울 중구',   speedLimit:60, lat:37.5713, lng:126.9769 },
-  { itstId:2100, name:'종로·율곡로',       region:'서울 종로구', speedLimit:50, lat:37.5747, lng:126.9895 },
-  { itstId:3300, name:'올림픽대로·잠실대교',region:'서울 송파구',speedLimit:80, lat:37.5190, lng:127.0980 },
-  { itstId:2500, name:'마포대로·공덕오거리',region:'서울 마포구',speedLimit:60, lat:37.5432, lng:126.9512 },
-  { itstId:3100, name:'동작대로·사당로',   region:'서울 동작구', speedLimit:60, lat:37.4764, lng:126.9816 },
-  { itstId:4100, name:'송파대로·올림픽로', region:'서울 송파구', speedLimit:60, lat:37.5044, lng:127.1242 },
-  { itstId:2600, name:'마포대로·마포역',   region:'서울 마포구', speedLimit:60, lat:37.5375, lng:126.9515 },
-  { itstId:2700, name:'여의대로·국회대로', region:'서울 영등포구',speedLimit:60, lat:37.5280, lng:126.9240 },
-  { itstId:1900, name:'통일로·독립문',     region:'서울 서대문구',speedLimit:60, lat:37.5724, lng:126.9610 },
-  { itstId:3200, name:'강남대로·양재역',   region:'서울 서초구', speedLimit:60, lat:37.4843, lng:127.0342 },
-];
 
 /* ━━━━━━━━━━━━━━━━━━━━━━
    유틸
@@ -513,9 +563,6 @@ function haversine(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-const COVERAGE_RADIUS_M = 30000; // 서울 교차로 데이터 유효 반경 30km
-
-// 두 지점 간 방위각 계산 (0°=북, 시계방향)
 function bearing(lat1, lng1, lat2, lng2) {
   const d2r = Math.PI/180;
   const dLng = (lng2 - lng1) * d2r;
@@ -524,39 +571,180 @@ function bearing(lat1, lng1, lat2, lng2) {
   return (Math.atan2(y, x) * 180/Math.PI + 360) % 360;
 }
 
-// 두 방위각의 각도 차이 (0~180)
 function angleDiff(a, b) {
   const d = Math.abs(a - b) % 360;
   return d > 180 ? 360 - d : d;
 }
 
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   제한속도 파싱
+   limitSped 형식: "416, 833" (1/10 단위 cm/s 혹은 고정값)
+   실제 T-Data 필드는 정수 km/h × 10 형태로 오는 경우가 있음
+   → 100 이하면 그대로 사용, 초과면 /10 반올림
+━━━━━━━━━━━━━━━━━━━━━━ */
+function parseSpeedLimit(raw) {
+  if (!raw) return null;
+  const parts = String(raw).split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v));
+  if (!parts.length) return null;
+  // 양방향 중 첫 번째 값 사용
+  const v = parts[0];
+  if (v <= 0) return null;
+  // T-Data는 종종 km/h × 10 형태 (예: 600 → 60km/h)
+  return v > 200 ? Math.round(v / 10) : v;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   교차로 DB 동적 로딩
+   v2xCrossroadMapInformation API를 페이징으로 전체 호출
+━━━━━━━━━━━━━━━━━━━━━━ */
+async function loadCrossroadDB() {
+  if (S.dbLoading) return;
+  S.dbLoading = true;
+  setDbBadge('loading', '⟳ 로딩 중');
+
+  const allItems = [];
+  let pageNo = 1;
+  let totalFetched = 0;
+  const MAX_PAGES = 50; // 최대 5,000개 (100 × 50)
+
+  try {
+    while (pageNo <= MAX_PAGES) {
+      const url = `${CONFIG.CROSSROAD_URL}?apiKey=${CONFIG.TDATA_API_KEY}&type=json&pageNo=${pageNo}&numOfRows=${CONFIG.DB_PAGE_SIZE}`;
+      const res = await fetch(url);
+      if (!res.ok) break;
+
+      const json = await res.json().catch(() => null);
+      if (!json) break;
+
+      // 응답 구조 파싱 (배열 or .data or .body.items)
+      let items = Array.isArray(json) ? json
+        : Array.isArray(json.data) ? json.data
+        : json.body?.items ? json.body.items
+        : null;
+
+      if (!items || !items.length) break;
+
+      for (const it of items) {
+        const lat = parseFloat(it.mapCtptIntLat);
+        const lng = parseFloat(it.mapCtptIntLot);
+        if (isNaN(lat) || isNaN(lng)) continue;
+        allItems.push({
+          itstId:     it.itstId,
+          name:       it.itstNm || `교차로 ${it.itstId}`,
+          lat,
+          lng,
+          speedLimit: parseSpeedLimit(it.limitSped),
+        });
+      }
+
+      totalFetched += items.length;
+      // 페이지 크기보다 적게 왔으면 마지막 페이지
+      if (items.length < CONFIG.DB_PAGE_SIZE) break;
+      pageNo++;
+
+      // 진행상황 배지 업데이트
+      setDbBadge('loading', `⟳ ${totalFetched}개`);
+    }
+  } catch(e) {
+    console.warn('교차로 DB 로딩 오류:', e);
+  }
+
+  S.dbLoading = false;
+
+  if (allItems.length > 0) {
+    S.itstDB = allItems;
+    S.dbLoaded = true;
+    setDbBadge('ready', `✓ ${allItems.length}개`);
+    $('dbCount').textContent = allItems.length.toLocaleString();
+    $('dbStatusSub').textContent = `서울 C-ITS 교차로 ${allItems.length}개 로딩 완료`;
+    console.log(`교차로 DB 로딩 완료: ${allItems.length}개`);
+  } else {
+    // API 실패 시 내장 폴백 데이터 사용
+    S.itstDB = FALLBACK_INTERSECTIONS;
+    S.dbLoaded = true;
+    setDbBadge('error', `⚠ 폴백 ${FALLBACK_INTERSECTIONS.length}개`);
+    $('dbCount').textContent = FALLBACK_INTERSECTIONS.length;
+    $('dbStatusSub').textContent = 'API 오류 — 내장 교차로 데이터 사용 중';
+    console.warn('API 실패, 폴백 데이터 사용');
+  }
+
+  // GPS가 이미 확보되어 있으면 교차로 탐색 즉시 재실행
+  if (S.myPos) {
+    const { nearest, second, outOfCoverage } = findNearest(S.myPos.lat, S.myPos.lng, S.myHeading);
+    S.nearestItst = nearest; S.secondItst = second;
+    setIntersectionUI(nearest, second, outOfCoverage);
+    if (!outOfCoverage && nearest) refreshSignal(nearest.itstId);
+  }
+}
+
+function setDbBadge(type, text) {
+  const b = $('dbBadge');
+  b.className = `db-badge ${type}`;
+  b.innerHTML = type === 'loading'
+    ? `<span class="spin">⟳</span> ${text.replace('⟳ ','')}`
+    : text;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   폴백 내장 교차로 (API 장애 대비 최소 집합)
+━━━━━━━━━━━━━━━━━━━━━━ */
+const FALLBACK_INTERSECTIONS = [
+  { itstId:4762, name:'강남대로·테헤란로', lat:37.4979, lng:127.0276, speedLimit:60 },
+  { itstId:4760, name:'강남대로·논현로',   lat:37.5088, lng:127.0213, speedLimit:60 },
+  { itstId:1850, name:'세종대로·태평로',   lat:37.5713, lng:126.9769, speedLimit:60 },
+  { itstId:2100, name:'종로·율곡로',       lat:37.5747, lng:126.9895, speedLimit:50 },
+  { itstId:3300, name:'올림픽대로·잠실대교',lat:37.5190, lng:127.0980, speedLimit:80 },
+  { itstId:2500, name:'마포대로·공덕오거리',lat:37.5432, lng:126.9512, speedLimit:60 },
+  { itstId:3100, name:'동작대로·사당로',   lat:37.4764, lng:126.9816, speedLimit:60 },
+  { itstId:4100, name:'송파대로·올림픽로', lat:37.5044, lng:127.1242, speedLimit:60 },
+  { itstId:2600, name:'마포대로·마포역',   lat:37.5375, lng:126.9515, speedLimit:60 },
+  { itstId:2700, name:'여의대로·국회대로', lat:37.5280, lng:126.9240, speedLimit:60 },
+  { itstId:1900, name:'통일로·독립문',     lat:37.5724, lng:126.9610, speedLimit:60 },
+  { itstId:3200, name:'강남대로·양재역',   lat:37.4843, lng:127.0342, speedLimit:60 },
+];
+
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   전방 교차로 탐색
+   - CONFIG.SEARCH_RADIUS_M 이내
+   - 진행 방향 기준 전방 90° 우선, 없으면 180°, 없으면 전방위
+━━━━━━━━━━━━━━━━━━━━━━ */
 function findNearest(lat, lng, heading) {
-  const candidates = INTERSECTIONS
+  if (!S.itstDB.length) return { nearest: null, second: null, outOfCoverage: false };
+
+  const candidates = S.itstDB
     .map(it => ({
       ...it,
       dist: Math.round(haversine(lat, lng, it.lat, it.lng)),
       bear: bearing(lat, lng, it.lat, it.lng),
     }))
-    .filter(it => it.dist <= COVERAGE_RADIUS_M);
+    .filter(it => it.dist <= CONFIG.SEARCH_RADIUS_M)
+    .sort((a,b) => a.dist - b.dist);
 
-  if (!candidates.length) return { nearest: null, second: null, outOfCoverage: true };
-
-  // heading이 유효하면 전방 180° 필터 적용
-  let forward = candidates;
-  if (heading !== null && heading !== undefined) {
-    const front = candidates.filter(it => angleDiff(it.bear, heading) <= 90);
-    // 전방 90° 이내 없으면 180° 이내로 넓힘
-    const wide  = candidates.filter(it => angleDiff(it.bear, heading) <= 180);
-    forward = front.length ? front : (wide.length ? wide : candidates);
+  if (!candidates.length) {
+    // 반경 내 없을 때 — 가장 가까운 것 1개라도 보여줌 (전방위 최근접)
+    const all = S.itstDB
+      .map(it => ({ ...it, dist: Math.round(haversine(lat, lng, it.lat, it.lng)), bear: bearing(lat, lng, it.lat, it.lng) }))
+      .sort((a,b) => a.dist - b.dist);
+    // 서울 경계 밖이면 outOfCoverage
+    if (!all.length || all[0].dist > 30000) return { nearest: null, second: null, outOfCoverage: true };
+    return { nearest: all[0], second: all[1]||null, outOfCoverage: false };
   }
 
-  forward.sort((a,b) => a.dist - b.dist);
-  // "second"는 전체 후보에서 nearest 제외한 전방 다음 교차로
-  const nearest = forward[0] || null;
-  const second  = forward[1] || null;
-  return { nearest, second, outOfCoverage: false };
+  if (heading === null || heading === undefined) {
+    return { nearest: candidates[0], second: candidates[1]||null, outOfCoverage: false };
+  }
+
+  // 전방 90° 필터
+  const front90 = candidates.filter(it => angleDiff(it.bear, heading) <= 90);
+  const front180 = candidates.filter(it => angleDiff(it.bear, heading) <= 180);
+  const forward = front90.length ? front90 : (front180.length ? front180 : candidates);
+
+  return { nearest: forward[0], second: forward[1]||null, outOfCoverage: false };
 }
 
+/* ━━━━━━━━━━━━━━━━━━━━━━
+   신호 데이터 파싱
+━━━━━━━━━━━━━━━━━━━━━━ */
 function centisecToSec(cs) {
   if (cs === null || cs === undefined || cs === '' || cs < 0) return null;
   return Math.round(cs / 10);
@@ -588,11 +776,11 @@ function inferColor(data, sec) {
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━
-   T-Data API
+   T-Data 신호 API
 ━━━━━━━━━━━━━━━━━━━━━━ */
 async function fetchSignal(itstId) {
   try {
-    const url = `${CONFIG.TDATA_URL}?apiKey=${CONFIG.TDATA_API_KEY}&type=json&pageNo=1&numOfRows=5&itstId=${itstId}`;
+    const url = `${CONFIG.SIGNAL_URL}?apiKey=${CONFIG.TDATA_API_KEY}&type=json&pageNo=1&numOfRows=5&itstId=${itstId}`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const json = await res.json().catch(() => null);
@@ -610,21 +798,17 @@ async function fetchSignal(itstId) {
    UI 업데이트
 ━━━━━━━━━━━━━━━━━━━━━━ */
 function setSignalUI(sec, color) {
-  // 신호등 3구
   ['bR','bY','bG'].forEach(id => $(id).classList.remove('on'));
   if (color==='red')    $('bR').classList.add('on');
   if (color==='yellow') $('bY').classList.add('on');
   if (color==='green')  $('bG').classList.add('on');
 
-  // 큰 숫자
   const num = $('bigNum');
   num.textContent = sec !== null ? sec : '--';
   num.className   = 'big-number' + (color!=='none' ? ' '+color : '');
 
-  // 글로우
   $('glowCircle').className = 'glow-circle' + (color!=='none' ? ' '+color : '');
 
-  // 프로그레스 링
   const pct = (sec!==null && S.signalMax>0) ? Math.round(sec/S.signalMax*100) : 0;
   const ring = $('ringFill');
   ring.style.strokeDashoffset = sec!==null ? (163 - 163*pct/100) : 163;
@@ -632,10 +816,8 @@ function setSignalUI(sec, color) {
   $('ringPct').textContent = sec!==null ? pct+'%' : '--%';
   $('ringPct').className   = 'ring-pct' + (color!=='none' ? ' '+color : '');
 
-  // 가이드 박스
   setGuideUI(color, sec);
 
-  // 경고
   if (color==='green' && sec!==null && sec<=CONFIG.WARN_SECONDS && !S.warnFired) {
     doWarn(); S.warnFired = true;
   }
@@ -677,6 +859,10 @@ function setGuideUI(color, sec) {
     icon.textContent = '🗺️';
     main.textContent = '서울 서비스 지역 밖입니다';
     sub.textContent  = '현재 앱은 서울 C-ITS 교차로만 지원합니다';
+  } else if (color === 'loading') {
+    icon.textContent = '📡';
+    main.textContent = '교차로 DB 로딩 중...';
+    sub.textContent  = '서울 C-ITS 교차로 정보를 불러오고 있습니다';
   } else {
     icon.textContent = '📡';
     main.textContent = '신호 데이터 수신 중...';
@@ -696,7 +882,7 @@ function setIntersectionUI(itst, second, outOfCoverage) {
     return;
   }
   if (!itst) {
-    $('itName').textContent   = '탐색 중...';
+    $('itName').textContent   = !S.dbLoaded ? '교차로 DB 로딩 중' : '탐색 중...';
     $('itRegion').textContent = '📍 서울';
     $('distNum').textContent  = '--';
     $('distNum').className    = 'dist-big';
@@ -706,10 +892,10 @@ function setIntersectionUI(itst, second, outOfCoverage) {
     return;
   }
   $('itName').textContent    = itst.name;
-  $('itRegion').textContent  = '📍 ' + itst.region;
+  $('itRegion').textContent  = '📍 서울 · ' + itst.dist + 'm';
   $('distNum').textContent   = itst.dist;
   $('distNum').className     = 'dist-big' + (itst.dist < 150 ? ' near' : '');
-  $('limitVal').textContent  = itst.speedLimit;
+  $('limitVal').textContent  = itst.speedLimit || '--';
 
   if (second) {
     $('nextName').textContent = second.name;
@@ -745,7 +931,6 @@ function doWarn() {
       osc.start(); osc.stop(ctx.currentTime+0.5);
     }
   } catch(e) {}
-  // 화면 플래시
   const box = $('guideBox');
   box.style.transition='none';
   box.style.background='rgba(255,214,0,0.28)';
@@ -765,6 +950,8 @@ async function onPosition(pos) {
   gps.className = 'pill gps-on'; gps.textContent = '● GPS';
 
   setSpeedUI(S.mySpeed, S.signalColor);
+
+  if (!S.dbLoaded) return; // DB 로딩 완료 전엔 탐색 스킵
 
   const { nearest, second, outOfCoverage } = findNearest(lat, lng, heading);
   S.nearestItst = nearest; S.secondItst = second;
@@ -804,6 +991,7 @@ function closeSettings() {
   $('settingsScreen').classList.add('hidden');
   history.replaceState({page:'main'}, '');
   CONFIG.WARN_SECONDS = parseInt($('warnSlider').value);
+  CONFIG.SEARCH_RADIUS_M = parseInt($('radiusSlider').value);
   const sel = document.querySelector('#alertGroup .radio-item.sel');
   if (sel) CONFIG.ALERT_TYPE = sel.dataset.val;
   const noSleep = $('noSleepToggle').checked;
@@ -811,8 +999,6 @@ function closeSettings() {
   else if (noSleep && !S.wakeLock) requestWakeLock();
 }
 $('backBtn').addEventListener('click', closeSettings);
-
-// 하드웨어 뒤로가기
 window.addEventListener('popstate', () => {
   if (!$('settingsScreen').classList.contains('hidden')) {
     $('settingsScreen').classList.add('hidden');
@@ -828,6 +1014,12 @@ document.querySelectorAll('#alertGroup .radio-item').forEach(item => {
   });
 });
 
+// DB 다시 로딩 버튼
+$('dbReloadBtn').addEventListener('click', async () => {
+  S.itstDB = []; S.dbLoaded = false;
+  await loadCrossroadDB();
+});
+
 /* ━━━━━━━━━━━━━━━━━━━━━━
    Wake Lock
 ━━━━━━━━━━━━━━━━━━━━━━ */
@@ -839,6 +1031,11 @@ async function requestWakeLock() {
    앱 시작
 ━━━━━━━━━━━━━━━━━━━━━━ */
 window.addEventListener('load', async () => {
+  // ① 교차로 DB 로딩 시작 (GPS와 병렬)
+  setGuideUI('loading', null);
+  loadCrossroadDB(); // await 없이 병렬 실행
+
+  // ② GPS 시작
   if (!navigator.geolocation) { alert('위치 서비스를 지원하지 않는 브라우저입니다.'); return; }
 
   navigator.geolocation.getCurrentPosition(
@@ -849,15 +1046,12 @@ window.addEventListener('load', async () => {
       $('gpsPill').className = 'pill gps-on';
       $('gpsPill').textContent = '● GPS';
 
-      // 초기 교차로 표시
-      const { nearest, second, outOfCoverage } = findNearest(lat, lng, null);
-      S.nearestItst = nearest; S.secondItst = second;
-      setIntersectionUI(nearest, second, outOfCoverage);
-      if (outOfCoverage) {
-        setSignalUI(null, 'none');
-        setGuideUI('oos', null);
-      } else if (nearest) {
-        await refreshSignal(nearest.itstId);
+      // DB가 로딩 완료됐을 때만 탐색
+      if (S.dbLoaded) {
+        const { nearest, second, outOfCoverage } = findNearest(lat, lng, null);
+        S.nearestItst = nearest; S.secondItst = second;
+        setIntersectionUI(nearest, second, outOfCoverage);
+        if (!outOfCoverage && nearest) await refreshSignal(nearest.itstId);
       }
 
       // 연속 위치 추적
@@ -869,7 +1063,7 @@ window.addEventListener('load', async () => {
 
       // 신호 주기 갱신
       S.fetchTimer = setInterval(async () => {
-        if (S.nearestItst) await refreshSignal(S.nearestItst.itstId);
+        if (S.nearestItst && S.dbLoaded) await refreshSignal(S.nearestItst.itstId);
       }, CONFIG.SIGNAL_FETCH_INTERVAL);
 
       requestWakeLock();
