@@ -1,14 +1,11 @@
 /* 전방주시철저 · Eyes on Road · Service Worker
-   작은앱공방 · 강종훈 · v3.0.0 */
-
-const CACHE_NAME = 'eyes-on-road-v3';  // index.html v3.0.0 대응
-
+   작은앱공방 · 강종훈 · v2.1.0 */
+const CACHE_NAME = 'eyes-on-road-v2-1';  // index.html v2.1.0 대응
 const STATIC_ASSETS = [
   './',
   './index.html',
   './manifest.json',
 ];
-
 // ── 설치 ──────────────────────────────
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -16,7 +13,6 @@ self.addEventListener('install', event => {
   );
   self.skipWaiting();
 });
-
 // ── 활성화 (구버전 캐시 정리) ───────────
 self.addEventListener('activate', event => {
   event.waitUntil(
@@ -28,19 +24,16 @@ self.addEventListener('activate', event => {
   );
   self.clients.claim();
 });
-
 // ── 패치 전략 ──────────────────────────
-// T-Data API → 네트워크 전용 (캐시 안 함)
-// 정적 파일  → 캐시 우선, 실패 시 네트워크
+// T-Data API / Cloudflare 프록시 → 네트워크 전용 (캐시 안 함)
+// 정적 파일 → 캐시 우선, 실패 시 네트워크
 self.addEventListener('fetch', event => {
   const url = event.request.url;
-
   // API 요청 → 네트워크만
-  if (url.includes('t-data.seoul.go.kr')) {
+  if (url.includes('t-data.seoul.go.kr') || url.includes('workers.dev')) {
     event.respondWith(fetch(event.request));
     return;
   }
-
   // 정적 자산 → 캐시 우선
   event.respondWith(
     caches.match(event.request).then(cached => {
