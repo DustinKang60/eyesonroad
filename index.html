@@ -332,7 +332,7 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
   </div>
   <div class="set-footer">
     <div class="set-footer-brand">작은앱공방 · 전방주시철저 Eyes on Road</div>
-    <div class="set-footer-ver">v2.1.0 · API 절약 모드 (내부 타이머 카운트다운)</div>
+    <div class="set-footer-ver">v2.2.0 · 신호 색상 판별 개선 (API 실측 기반)</div>
   </div>
 </div>
 
@@ -522,23 +522,73 @@ function findNearest(lat,lng,heading){
    신호 데이터 파싱
 ══════════════════════════════════════ */
 function cs2sec(cs){if(cs===null||cs===undefined||cs===''||cs<0)return null;return Math.round(cs/10);}
-function extractSec(data,heading){
-  if(!data)return null;
-  let dir='nt';
-  if(heading!==null&&heading!==undefined){
-    const h=((heading%360)+360)%360;
-    if(h>=45&&h<135)dir='et';else if(h>=135&&h<225)dir='st';else if(h>=225&&h<315)dir='wt';
+
+/* ══════════════════════════════════════════════════
+   방향 코드 반환 (heading → 'nt'/'et'/'st'/'wt')
+══════════════════════════════════════════════════ */
+function headingToDir(heading){
+  if(heading===null||heading===undefined)return null;
+  const h=((heading%360)+360)%360;
+  if(h>=45&&h<135)return'et';
+  if(h>=135&&h<225)return'st';
+  if(h>=225&&h<315)return'wt';
+  return'nt';
+}
+
+/* ══════════════════════════════════════════════════
+   ★★★ 핵심 신호 파싱 (API 실측 기반) ★★★
+
+   API 필드 의미 (실측 확인):
+   - Bssg = 현재 빨간불 잔여시간  ← 켜져 있는 신호
+   - Stsg = 직진(초록) 잔여시간   ← 켜져 있는 신호
+   - Ylsg = 황색 잔여시간
+   - Ltsg = 좌회전 잔여시간
+   - Pdsg = 보행자 신호
+
+   판별 규칙:
+   ① 해당 방향 Ylsg > 0  → 황색
+   ② 해당 방향 Bssg > 0, Stsg null → 빨간 (Bssg = 현재 빨간 잔여)
+   ③ 해당 방향 Stsg > 0, Bssg null → 초록 (Stsg = 현재 초록 잔여)
+   ④ Bssg·Stsg 둘 다 값 있음      → Bssg가 현재 빨간, Stsg는 다음 초록 대기시간
+   ⑤ 위 모두 null → 전체 방향 순서대로 재탐색
+══════════════════════════════════════════════════ */
+function extractSignal(data, heading){
+  if(!data) return {color:'none', sec:null};
+  const dirs = [];
+  const primary = headingToDir(heading);
+  if(primary) dirs.push(primary);
+  for(const d of ['nt','et','st','wt']){ if(d!==primary) dirs.push(d); }
+
+  for(const dir of dirs){
+    const bssg = cs2sec(data[dir+'BssgRmdrCs']);  // 빨간
+    const stsg = cs2sec(data[dir+'StsgRmdrCs']);  // 직진(초록)
+    const ylsg = cs2sec(data[dir+'YlsgRmdrCs']);  // 황색
+    const ltsg = cs2sec(data[dir+'LtsgRmdrCs']);  // 좌회전
+
+    // 이 방향에 아무 데이터도 없으면 다음 방향으로
+    if(bssg===null && stsg===null && ylsg===null) continue;
+
+    // ① 황색
+    if(ylsg!==null && ylsg>0) return {color:'yellow', sec:ylsg};
+
+    // ② 빨간만 있음 → 현재 빨간불
+    if(bssg!==null && stsg===null) return {color:'red', sec:bssg};
+
+    // ③ 초록만 있음 → 현재 초록불
+    if(stsg!==null && bssg===null) return {color:'green', sec:stsg};
+
+    // ④ 빨간+초록 둘 다 있음 → 현재 빨간, stsg는 다음 초록까지 남은 시간
+    if(bssg!==null && stsg!==null) return {color:'red', sec:bssg};
+
+    // ⑤ 좌회전만 있는 경우
+    if(ltsg!==null && ltsg>0) return {color:'green', sec:ltsg};
   }
-  const v=cs2sec(data[dir+'StsgRmdrCs']);
-  if(v!==null)return v;
-  for(const k of['ntStsgRmdrCs','stStsgRmdrCs','etStsgRmdrCs','wtStsgRmdrCs']){const x=cs2sec(data[k]);if(x!==null)return x;}
-  return null;
+  return {color:'none', sec:null};
 }
-function inferColor(data,sec){
-  if(sec===null)return'none';
-  for(const k of['ntYlsgRmdrCs','stYlsgRmdrCs','etYlsgRmdrCs','wtYlsgRmdrCs']){if(data[k]>0)return'yellow';}
-  return sec>0?'green':'red';
-}
+
+// 하위 호환용 래퍼 (doFetchSignal에서 extractSec/inferColor 대신 extractSignal 사용)
+function extractSec(data,heading){ return extractSignal(data,heading).sec; }
+function inferColor(data,sec,heading){ return extractSignal(data,heading).color; }
 
 /* ══════════════════════════════════════════════════
    ★★★ 핵심: API 호출 게이트키퍼 ★★★
@@ -591,8 +641,7 @@ async function doFetchSignal(itstId){
     const items=Array.isArray(json)?json:Array.isArray(json.data)?json.data:json.body?.items?json.body.items:[json];
     if(!items?.length){addLog(`신호 없음: 교차로 ${itstId}`,'warn');setSignalUI(null,'none');S.isFetching=false;return;}
     const data=items.find(it=>String(it.itstId)===String(itstId))||items[0];
-    const sec=extractSec(data,S.myHeading);
-    const color=inferColor(data,sec);
+    const {color, sec}=extractSignal(data,S.myHeading);
     addLog(`신호: ${color} ${sec!==null?sec+'초':'시간미상'} (교차로 ${itstId})`,'ok');
     if(color!==S.signalColor){S.signalMax=sec;S.warnFired=false;}
     if(sec!==null&&(S.signalMax===null||sec>S.signalMax))S.signalMax=sec;
@@ -786,7 +835,7 @@ $('dbReloadBtn').addEventListener('click',async()=>{
 async function requestWakeLock(){try{if('wakeLock'in navigator)S.wakeLock=await navigator.wakeLock.request('screen');}catch(e){}}
 
 window.addEventListener('load',async()=>{
-  addLog('앱 시작 v2.1 (API절약 모드)','info');
+  addLog('앱 시작 v2.2 (신호 색상 판별 개선)','info');
   setGuideUI('loading',null);
   loadCrossroadDB();
   if(!navigator.geolocation){addLog('GPS 미지원','err');return;}
