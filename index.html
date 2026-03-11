@@ -590,7 +590,7 @@ document.addEventListener('DOMContentLoaded', () => {
 const CONFIG = {
   TDATA_API_KEY: '07d04542-6b93-4871-9ba1-2613e5ab0043',
   SIGNAL_URL: 'https://t-data.seoul.go.kr/apig/apiman-gateway/tapi/v2xSignalPhaseTimingInformation/1.0',
-  CROSSROAD_URL: 'https://t-data.seoul.go.kr/apig/apiman-gateway/tapi/v2xCrossroadMapInformation/1.0',
+  CROSSROAD_URL: 'https://tdata-proxy.jonghoon-kang.workers.dev',
   SIGNAL_FETCH_INTERVAL: 3000,
   WARN_SECONDS: 5,
   ALERT_TYPE: 'sound',
@@ -662,7 +662,8 @@ async function loadCrossroadDB() {
 
   try {
     while (pageNo <= MAX_PAGES) {
-      const url = `${CONFIG.CROSSROAD_URL}?apiKey=${CONFIG.TDATA_API_KEY}&type=json&pageNo=${pageNo}&numOfRows=${CONFIG.DB_PAGE_SIZE}`;
+      const targetUrl = `https://t-data.seoul.go.kr/apig/apiman-gateway/tapi/v2xCrossroadMapInformation/1.0?apiKey=${CONFIG.TDATA_API_KEY}&type=json&pageNo=${pageNo}&numOfRows=${CONFIG.DB_PAGE_SIZE}`;
+      const url = `${CONFIG.CROSSROAD_URL}?url=${encodeURIComponent(targetUrl)}`;
       addLog(`API 요청: 페이지 ${pageNo} (${url.slice(0,60)}...)`, 'info');
 
       const res = await fetch(url);
