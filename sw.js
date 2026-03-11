@@ -1,50 +1,44 @@
-/* 전방주시철저 · Eyes on Road · Service Worker
-   작은앱공방 · 강종훈 · v2.1.0 */
-const CACHE_NAME = 'eyes-on-road-v2-1';  // index.html v2.1.0 대응
-const STATIC_ASSETS = [
+const CACHE_NAME = 'eyes-on-road-v2-2';  // index.html v2.1.0 대응
+
+const CACHE_FILES = [
   './',
   './index.html',
   './manifest.json',
 ];
-// ── 설치 ──────────────────────────────
+
+// 설치: 핵심 파일 캐시
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
+    caches.open(CACHE_NAME).then(cache => cache.addAll(CACHE_FILES))
   );
   self.skipWaiting();
 });
-// ── 활성화 (구버전 캐시 정리) ───────────
+
+// 활성화: 이전 버전 캐시 삭제
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
       )
     )
   );
   self.clients.claim();
 });
-// ── 패치 전략 ──────────────────────────
-// T-Data API / Cloudflare 프록시 → 네트워크 전용 (캐시 안 함)
-// 정적 파일 → 캐시 우선, 실패 시 네트워크
+
+// 네트워크 요청 처리
+// API 호출은 캐시하지 않고 항상 네트워크 직접 사용
 self.addEventListener('fetch', event => {
   const url = event.request.url;
-  // API 요청 → 네트워크만
+
+  // API 요청은 캐시 건드리지 않음
   if (url.includes('t-data.seoul.go.kr') || url.includes('workers.dev')) {
     event.respondWith(fetch(event.request));
     return;
   }
-  // 정적 자산 → 캐시 우선
+
+  // 그 외: 캐시 우선, 없으면 네트워크
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(response => {
-        if (event.request.method === 'GET' && response.status === 200) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      });
-    })
+    caches.match(event.request).then(cached => cached || fetch(event.request))
   );
 });
