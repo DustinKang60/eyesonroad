@@ -662,7 +662,7 @@ async function loadCrossroadDB() {
 
   try {
     while (pageNo <= MAX_PAGES) {
-      const targetUrl = `https://t-data.seoul.go.kr/apig/apiman-gateway/tapi/v2xCrossroadMapInformation/1.0?apiKey=${CONFIG.TDATA_API_KEY}&type=json&pageNo=${pageNo}&numOfRows=${CONFIG.DB_PAGE_SIZE}`;
+      const targetUrl = `https://t-data.seoul.go.kr/apig/apiman-gateway/tapi/v2xCrossroadMapInformation/1.0?apikey=${CONFIG.TDATA_API_KEY}&type=json&pageNo=${pageNo}&numOfRows=${CONFIG.DB_PAGE_SIZE}`;
       const url = `${CONFIG.CROSSROAD_URL}?url=${encodeURIComponent(targetUrl)}`;
       addLog(`API 요청: 페이지 ${pageNo} (${url.slice(0,60)}...)`, 'info');
 
@@ -838,7 +838,7 @@ function inferColor(data, sec) {
 ━━━━━━━━━━━━━━━━━━━━━━ */
 async function fetchSignal(itstId) {
   try {
-    const url = `${CONFIG.SIGNAL_URL}?apiKey=${CONFIG.TDATA_API_KEY}&type=json&pageNo=1&numOfRows=5&itstId=${itstId}`;
+    const url = `${CONFIG.SIGNAL_URL}?apikey=${CONFIG.TDATA_API_KEY}&type=json&pageNo=1&numOfRows=5&itstId=${itstId}`;
     const res = await fetch(url);
     if (!res.ok) {
       addLog(`신호 API 오류: ${res.status} (교차로 ${itstId})`, 'err');
