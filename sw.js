@@ -1,7 +1,7 @@
 /* 전방주시철저 · Eyes on Road · Service Worker
-   작은앱공방 · 강종훈 · v2.0.0 */
+   작은앱공방 · 강종훈 · v3.0.0 */
 
-const CACHE_NAME = 'eyes-on-road-v2';  // index.html v2.0.0 대응
+const CACHE_NAME = 'eyes-on-road-v3';  // index.html v3.0.0 대응
 
 const STATIC_ASSETS = [
   './',
