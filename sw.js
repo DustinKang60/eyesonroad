@@ -1,9 +1,8 @@
 /* 전방주시철저 · Eyes on Road · Service Worker
-   작은앱공방 · 강종훈 · v1.0.0 */
+   작은앱공방 · 강종훈 · v2.0.0 */
 
-const CACHE_NAME = 'eyes-on-road-v1';
+const CACHE_NAME = 'eyes-on-road-v2';  // index.html v2.0.0 대응
 
-// 오프라인 캐시할 정적 파일
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -31,23 +30,22 @@ self.addEventListener('activate', event => {
 });
 
 // ── 패치 전략 ──────────────────────────
-// API 요청(t-data, kakao) → 항상 네트워크 우선
-// 정적 파일 → 캐시 우선
+// T-Data API → 네트워크 전용 (캐시 안 함)
+// 정적 파일  → 캐시 우선, 실패 시 네트워크
 self.addEventListener('fetch', event => {
   const url = event.request.url;
 
-  // T-Data / 카카오 API → 네트워크만 (캐시 안 함)
-  if (url.includes('t-data.seoul.go.kr') || url.includes('dapi.kakao.com')) {
+  // API 요청 → 네트워크만
+  if (url.includes('t-data.seoul.go.kr')) {
     event.respondWith(fetch(event.request));
     return;
   }
 
-  // 정적 자산 → 캐시 우선, 실패 시 네트워크
+  // 정적 자산 → 캐시 우선
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
       return fetch(event.request).then(response => {
-        // GET 요청만 캐시
         if (event.request.method === 'GET' && response.status === 200) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
