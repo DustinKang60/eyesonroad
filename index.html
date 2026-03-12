@@ -14,7 +14,7 @@
 :root{--bg:#06060E;--bg2:#0D0D1C;--border:rgba(255,255,255,0.07);--G:#00E676;--Y:#FFD600;--R:#FF3D57;--dim:rgba(255,255,255,0.22);--mid:rgba(255,255,255,0.50);--accent:#FFD600}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'Noto Sans KR',sans-serif;overflow:hidden;position:fixed;top:0;left:0;right:0;bottom:0}
-.screen{width:100%;max-width:420px;height:100%;height:100dvh;margin:0 auto;display:flex;flex-direction:column;position:absolute;top:0;left:0;right:0;overflow:hidden;transition:transform .32s cubic-bezier(.4,0,.2,1),opacity .32s}
+.screen{width:100%;max-width:420px;height:100%;height:100dvh;margin:0 auto;display:flex;flex-direction:column;position:absolute;top:0;left:0;right:0;overflow:hidden;transition:transform .32s cubic-bezier(.4,0,.2,1),opacity .32s;background:var(--bg)}
 .screen.hidden{transform:translateX(100%);opacity:0;pointer-events:none}
 #settingsScreen{background:var(--bg)}
 .status-bar{flex-shrink:0;padding:10px 18px 6px;display:flex;justify-content:space-between;align-items:center}
@@ -343,7 +343,7 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
   </div>
   <div class="set-footer">
     <div class="set-footer-brand">작은앱공방 · 전방주시철저 Eyes on Road</div>
-    <div class="set-footer-ver">v3.5.0 · 인트로 멈춤 수정 · DB 파싱 비동기 처리</div>
+    <div class="set-footer-ver">v3.5.1 · 설정화면 겹침 수정</div>
   </div>
 </div>
 
