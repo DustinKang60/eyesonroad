@@ -343,7 +343,7 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
   </div>
   <div class="set-footer">
     <div class="set-footer-brand">작은앱공방 · 전방주시철저 Eyes on Road</div>
-    <div class="set-footer-ver">v3.4.0 · sigDB localStorage 제거 · GPS 권한 버그 수정</div>
+    <div class="set-footer-ver">v3.5.0 · 인트로 멈춤 수정 · DB 파싱 비동기 처리</div>
   </div>
 </div>
 
@@ -381,19 +381,15 @@ const CONFIG = {
   SEARCH_RADIUS_M: 800,
   DB_PAGE_SIZE:    100,
   API_DAILY_LIMIT: 1000,
-  // ★ v3.0: DB 캐시 유효기간 (180일 = 약 6개월)
   DB_CACHE_DAYS:   180,
   DB_CACHE_KEY:    'eor_itstDB_v3',
   DB_CACHE_TS_KEY: 'eor_itstDB_ts_v3',
-  // ★ v3.2: 신호등 위치 DB
   SIG_DB_KEY:      'eor_sigDB_v1',
   SIG_DB_TS_KEY:   'eor_sigDB_ts_v1',
   SIG_DB_URL:      'signals.json',
   SIG_CACHE_DAYS:  180,
-  // ★ v3.0: 전방 탐색 각도 허용 범위
-  HEADING_CONE_DEG: 60,   // 진행방향 ±60° 이내만 전방으로 인정
-  // ★ v3.0: 교차로 통과 감지 — 이 거리 이하로 접근 후 멀어지면 통과
-  PASS_DETECT_M:   25,  // v3.1: 40→25m (더 정확한 통과 감지)
+  HEADING_CONE_DEG: 60,
+  PASS_DETECT_M:   25,
 };
 
 /* ══════════════════════════════════════
@@ -403,24 +399,19 @@ const S = {
   myPos:null, myHeading:null, mySpeed:0,
   nearestItst:null, secondItst:null,
   signalColor:'none', signalSec:null, signalMax:null, warnFired:false,
-
-  // API 호출 게이트
   lastFetchedItstId: null,
   isFetching:        false,
   countdownTimer:    null,
   refetchTimer:      null,
-  isRateLimited:     false,  // ★ v3.1: 429 대기 중 GPS 재호출 차단
-  debugRaw:          true,   // ★ v3.3 진단: 원시 API 필드 덤프 (기본 ON)
-
-  // ★ v3.0: 교차로 통과 감지용
-  prevDist:          null,  // 직전 GPS의 현재 교차로까지 거리
-  minDist:           null,  // 현재 교차로에 가장 근접했던 거리
-  passed:            false, // 이미 통과 처리했는지 여부
-
+  isRateLimited:     false,
+  debugRaw:          true,
+  prevDist:          null,
+  minDist:           null,
+  passed:            false,
   apiCallCount:0, timerTickCount:0,
   wakeLock:null, watchId:null,
   itstDB:[], dbLoaded:false, dbLoading:false,
-  sigDB:[],  sigLoaded:false,  // ★ v3.2: 신호등 위치 DB
+  sigDB:[],  sigLoaded:false,
 };
 
 /* ══════════════════════════════════════
@@ -458,10 +449,9 @@ function updateUsageUI(){
 }
 
 /* ══════════════════════════════════════════════════
-   ★ v3.0: 교차로 DB — IndexedDB 로컬 캐시
-   - 캐시가 있고 유효기간(180일) 이내 → 캐시 사용 (API 0회)
-   - 캐시 없거나 만료 → API에서 다운로드 후 캐시 저장
-   - 강제 업데이트 버튼 → 캐시 무효화 후 재다운로드
+   교차로 DB 로딩
+   ★ v3.5: JSON.parse를 setTimeout(0)으로 래핑 →
+           메인 스레드 블로킹 없이 비동기 파싱
 ══════════════════════════════════════════════════ */
 async function loadCrossroadDB(forceReload=false){
   if(S.dbLoading)return;
@@ -476,7 +466,8 @@ async function loadCrossroadDB(forceReload=false){
       if(ts&&cached){
         const age=(Date.now()-parseInt(ts))/(1000*60*60*24);
         if(age<CONFIG.DB_CACHE_DAYS){
-          const db=JSON.parse(cached);
+          // ★ v3.5: JSON.parse를 다음 이벤트 루프로 미뤄서 UI 블로킹 방지
+          const db=await new Promise(r=>setTimeout(()=>r(JSON.parse(cached)),0));
           if(db&&db.length>0){
             S.itstDB=db;S.dbLoaded=true;S.dbLoading=false;
             setDbBadge('ready',`✓ ${db.length}`);
@@ -534,7 +525,6 @@ async function loadCrossroadDB(forceReload=false){
   S.dbLoading=false;
   if(all.length>0){
     S.itstDB=all;S.dbLoaded=true;
-    // ③ 캐시 저장
     try{
       localStorage.setItem(CONFIG.DB_CACHE_KEY,JSON.stringify(all));
       localStorage.setItem(CONFIG.DB_CACHE_TS_KEY,String(Date.now()));
@@ -567,13 +557,9 @@ function setDbBadge(type,text){
 }
 
 /* ══════════════════════════════════════════════════
-   ★ v3.2: 신호등 위치 DB 로딩 (signals.json)
-   - 28,012개 차량 신호등 위치
-   - 로컬 캐시 180일
-   - C-ITS itstDB와 병합하여 정밀 탐색에 활용
+   신호등 위치 DB 로딩 (signals.json)
 ══════════════════════════════════════════════════ */
 async function loadSignalDB(){
-  // ★ v3.3: localStorage 캐시 없이 sw.js 캐시만 사용 (localStorage 용량 초과 방지)
   try{
     addLog('신호등DB 로드 중...','info');
     const res=await fetch(CONFIG.SIG_DB_URL);
@@ -581,10 +567,13 @@ async function loadSignalDB(){
     const json=await res.json();
     const sigs=json.signals||[];
     if(!sigs.length){addLog('신호등DB 비어있음','warn');return;}
+    // ★ v3.5: 대용량 배열 할당 전 한 프레임 양보
+    await new Promise(r=>setTimeout(r,0));
     S.sigDB=sigs; S.sigLoaded=true;
     addLog(`신호등DB 로드완료: ${sigs.length}개`,'ok');
   }catch(e){addLog(`신호등DB 오류: ${e.message}`,'warn');}
 }
+
 const FALLBACK=[
   {itstId:4762,name:'강남대로·테헤란로',lat:37.4979,lng:127.0276,speedLimit:60},
   {itstId:4760,name:'강남대로·논현로',lat:37.5088,lng:127.0213,speedLimit:60},
@@ -601,17 +590,11 @@ const FALLBACK=[
 ];
 
 /* ══════════════════════════════════════════════════
-   ★ v3.2: 교차로 탐색 — sigDB 정밀 위치 우선
-
-   탐색 우선순위:
-   1. sigDB (신호등 28,012개) — 반경 150m 이내 + 진행방향 ±60°
-      → 가장 가까운 신호등 위치로 itstDB에서 매칭
-   2. itstDB (C-ITS 교차로) — 기존 로직
+   교차로 탐색 — sigDB 정밀 위치 우선
 ══════════════════════════════════════════════════ */
 function findNearest(lat,lng,heading){
   if(!S.itstDB.length)return{nearest:null,second:null,oos:false};
 
-  // ★ sigDB 정밀 탐색: 반경 150m + 진행방향 ±60° 내 신호등
   if(S.sigLoaded && S.sigDB.length && heading!==null && heading!==undefined){
     const SIG_RADIUS=150;
     const nearSigs=S.sigDB
@@ -620,17 +603,15 @@ function findNearest(lat,lng,heading){
       .sort((a,b)=>a.dist-b.dist);
 
     if(nearSigs.length){
-      // 가장 가까운 신호등 위치 기준으로 itstDB에서 가장 가까운 교차로 매칭
       const sig=nearSigs[0];
       const matched=S.itstDB
         .map(it=>({...it,dist:Math.round(haversine(lat,lng,it.lat,it.lng)),
                    sigDist:Math.round(haversine(sig.lat,sig.lng,it.lat,it.lng)),
                    bear:bearing(lat,lng,it.lat,it.lng)}))
-        .filter(it=>it.sigDist<=300)  // 신호등에서 300m 이내 교차로
+        .filter(it=>it.sigDist<=300)
         .sort((a,b)=>a.sigDist-b.sigDist);
 
       if(matched.length){
-        // 진행방향 필터
         const front=matched.filter(it=>angleDiff(it.bear,heading)<=90);
         const pool=front.length?front:matched;
         const second=pool[1]||null;
@@ -640,7 +621,6 @@ function findNearest(lat,lng,heading){
     }
   }
 
-  // fallback: 기존 itstDB 직접 탐색
   const all=S.itstDB.map(it=>({
     ...it,
     dist:Math.round(haversine(lat,lng,it.lat,it.lng)),
@@ -669,18 +649,13 @@ function findNearest(lat,lng,heading){
 /* ══════════════════════════════════════
    신호 데이터 파싱
 ══════════════════════════════════════ */
-// 1/10초 단위 → 초 변환. 최대 300초(5분) 초과값은 비정상으로 null 처리
 function cs2sec(cs){
-  // v3.3: /10 제거 (API가 이미 초 단위로 줌), 상한 600초로 완화
   if(cs===null||cs===undefined||cs===''||cs<0)return null;
   const s=Math.round(Number(cs));
   if(s>600)return null;
   return s;
 }
 
-/* ══════════════════════════════════════════════════
-   방향 코드 반환 (heading → 'nt'/'et'/'st'/'wt')
-══════════════════════════════════════════════════ */
 function headingToDir(heading){
   if(heading===null||heading===undefined)return null;
   const h=((heading%360)+360)%360;
@@ -690,23 +665,6 @@ function headingToDir(heading){
   return'nt';
 }
 
-/* ══════════════════════════════════════════════════
-   ★★★ 핵심 신호 파싱 v3.1 (재분석 기반) ★★★
-
-   API 실측 재분석:
-   - BssgRmdrCs : 빨간(정지) 신호 잔여시간 (1/10초)
-   - StsgRmdrCs : 직진 허용 신호 잔여시간 (1/10초)
-   - YlsgRmdrCs : 황색 신호 잔여시간
-
-   핵심 발견:
-   - Bssg와 Stsg가 같은 값으로 동시에 오는 경우가 많음
-     → 이는 "현재 직진 가능 (초록)" 상태를 의미
-     → Bssg = 이 방향의 전체 신호 주기 중 남은 시간으로 해석
-   - Bssg만 있고 Stsg=null → 진짜 빨간불
-   - Stsg만 있고 Bssg=null → 초록불
-   - 둘 다 동일한 값 → 초록불 (직진 허용 중)
-   - 둘 다 있고 값이 다름 → Stsg가 직진 잔여, Bssg가 더 크면 빨간 대기
-══════════════════════════════════════════════════ */
 function extractSignal(data, heading){
   if(!data) return {color:'none', sec:null};
   const dirs = [];
@@ -719,63 +677,42 @@ function extractSignal(data, heading){
     const sRaw = data[dir+'StsgRmdrCs'];
     const yRaw = data[dir+'YlsgRmdrCs'];
 
-    // ★ v3.3 진단 로그: API 원시값 기록 (데이터 있는 방향만)
     if(bRaw!==null&&bRaw!==undefined || sRaw!==null&&sRaw!==undefined){
-      addLog(\`[원시값] \${dir}: B=\${bRaw} S=\${sRaw} Y=\${yRaw}\`,'info');
+      addLog(`[원시값] ${dir}: B=${bRaw} S=${sRaw} Y=${yRaw}`,'info');
     }
 
     const bssg = cs2sec(bRaw);
     const stsg = cs2sec(sRaw);
     const ylsg = cs2sec(yRaw);
 
-    // 이 방향에 아무 데이터도 없으면 다음 방향으로
     if(bssg===null && stsg===null && ylsg===null) continue;
 
-    // ① 황색
     if(ylsg!==null && ylsg>0) return {color:'yellow', sec:ylsg};
-
-    // ② Stsg만 있음 → 확실한 초록
     if(stsg!==null && bssg===null) return {color:'green', sec:stsg};
-
-    // ③ Bssg만 있음 → 확실한 빨간
     if(bssg!==null && stsg===null) return {color:'red', sec:bssg};
-
-    // ④ 둘 다 있는 경우 → 값 비교로 판별
     if(bssg!==null && stsg!==null){
-      // Stsg ≤ Bssg: 직진 잔여가 더 짧거나 같음 → 초록 (직진 허용 중)
       if(stsg<=bssg) return {color:'green', sec:stsg};
-      // Stsg > Bssg: 이상한 케이스 → 빨간으로 보수적 처리
       return {color:'red', sec:bssg};
     }
   }
   return {color:'none', sec:null};
 }
 
-// 하위 호환용 래퍼
 function extractSec(data,heading){ return extractSignal(data,heading).sec; }
 function inferColor(data,sec,heading){ return extractSignal(data,heading).color; }
 
 /* ══════════════════════════════════════════════════
-   ★★★ 핵심: API 호출 게이트키퍼 ★★★
-
-   API 호출은 반드시 이 함수를 통해서만 시작됨.
-   아래 조건 중 하나라도 해당되면 API 호출 안 함:
-   ① 현재 fetch 진행 중 (isFetching)
-   ② 같은 교차로 + 카운트다운 진행 중 (countdownTimer 있음)
+   API 호출 게이트키퍼
 ══════════════════════════════════════════════════ */
 function requestSignalFetch(itstId, reason){
   if(S.isFetching)return;
-
-  // ★ v3.1: 429 대기 중이면 GPS 업데이트로 인한 재호출 완전 차단
   if(S.isRateLimited)return;
-
   if(String(S.lastFetchedItstId)===String(itstId)
      && S.countdownTimer!==null
      && S.signalSec!==null
      && S.signalSec>0){
     return;
   }
-
   addLog(`신호 API 요청 (${reason}): 교차로 ${itstId}`,'info');
   doFetchSignal(itstId);
 }
@@ -800,17 +737,15 @@ async function doFetchSignal(itstId){
         S.isRateLimited=true;
         scheduleRefetch(itstId,60);
       } else {
-        // 기타 HTTP 오류 → 30초 후 재시도
         scheduleRefetch(itstId,30);
       }
       S.isFetching=false;return;
     }
 
-    // ★ v3.4: Content-Type 확인 — HTML 에러 페이지 감지
     const ct = res.headers.get('content-type')||'';
     if(ct.includes('text/html')){
       addLog(`API가 HTML 반환 → 서울시 서버 오류 (교차로 ${itstId})`,'warn');
-      scheduleRefetch(itstId,60);  // 60초 후 재시도
+      scheduleRefetch(itstId,60);
       S.isFetching=false;return;
     }
 
@@ -820,7 +755,6 @@ async function doFetchSignal(itstId){
     if(!items?.length){addLog(`신호 없음: 교차로 ${itstId}`,'warn');setSignalUI(null,'none');scheduleRefetch(itstId,30);S.isFetching=false;return;}
     const data=items.find(it=>String(it.itstId)===String(itstId))||items[0];
 
-    // ★ v3.3 진단: 원시 필드 덤프
     if(S.debugRaw){
       const keys=Object.keys(data||{});
       addLog(`RAW keys: ${keys.join(', ')}`,'info');
@@ -836,10 +770,9 @@ async function doFetchSignal(itstId){
     setSignalUI(sec,color);setSpeedUI(S.mySpeed,color);
 
     if(sec!==null&&sec>0){
-      S._noneCount=0;  // ★ 정상 수신 시 초기화
+      S._noneCount=0;
       startCountdown(itstId,sec,color);
     } else {
-      // ★ v3.4: none/시간미상이 연속 3회 이상이면 30초 간격으로 늦춤 (한도 절약)
       S._noneCount=(S._noneCount||0)+1;
       const delay=S._noneCount>=3?30:15;
       if(S._noneCount>=3) addLog(`시간미상 ${S._noneCount}회 연속 → ${delay}초 후 재시도`,'warn');
@@ -849,11 +782,9 @@ async function doFetchSignal(itstId){
   S.isFetching=false;
 }
 
-/* ══════════════════════════════════════════════════
-   ★ 내부 타이머 카운트다운
-   API 없이 폰 내부 시계로 1초씩 감소.
-   0이 되면 그때 API 1번 재호출.
-══════════════════════════════════════════════════ */
+/* ══════════════════════════════════════
+   내부 타이머 카운트다운
+══════════════════════════════════════ */
 function startCountdown(itstId,initialSec,color){
   stopTimers();
   let rem=initialSec;
@@ -879,7 +810,7 @@ function scheduleRefetch(itstId,delaySec){
   addLog(`${delaySec}초 후 신호 재확인 예약`,'info');
   S.refetchTimer=setTimeout(()=>{
     S.lastFetchedItstId=null;
-    S.isRateLimited=false;  // ★ v3.1: 대기 끝 → 차단 해제
+    S.isRateLimited=false;
     if(S.nearestItst&&String(S.nearestItst.itstId)===String(itstId))requestSignalFetch(itstId,`${delaySec}초 후 재확인`);
   },delaySec*1000);
 }
@@ -967,13 +898,7 @@ function doWarn(){
 }
 
 /* ══════════════════════════════════════════════════
-   GPS 위치 콜백 (v3.0)
-   ★★★ 절대 규칙: API 직접 호출 금지 ★★★
-
-   v3.0 핵심 추가: 교차로 통과 감지
-   - 전방 교차로까지 거리가 줄다가 PASS_DETECT_M 이하로
-     접근한 후 다시 늘어나면 → 통과로 판정
-   - 통과 즉시 다음 교차로로 전환 + API 1회 호출
+   GPS 위치 콜백
 ══════════════════════════════════════════════════ */
 function onPosition(pos){
   const{latitude:lat,longitude:lng,speed,heading}=pos.coords;
@@ -982,14 +907,9 @@ function onPosition(pos){
   setSpeedUI(S.mySpeed,S.signalColor);
   if(!S.dbLoaded)return;
 
-  // ★ 통과 감지: 현재 교차로까지 거리 추적
   if(S.nearestItst){
     const curDist=Math.round(haversine(lat,lng,S.nearestItst.lat,S.nearestItst.lng));
-
-    // 최근접 거리 갱신
     if(S.minDist===null||curDist<S.minDist) S.minDist=curDist;
-
-    // 통과 판정: 충분히 근접했다가 멀어지는 경우
     if(!S.passed
       && S.minDist<=CONFIG.PASS_DETECT_M
       && S.prevDist!==null
@@ -997,7 +917,6 @@ function onPosition(pos){
       && curDist>CONFIG.PASS_DETECT_M){
       S.passed=true;
       addLog(`🚦 교차로 통과: ${S.nearestItst.name} (최근접 ${S.minDist}m)`,'ok');
-      // 통과 후 다음 교차로 탐색으로 즉시 전환
       const{nearest,second,oos}=findNextAfterPass(lat,lng,heading,S.nearestItst.itstId);
       const prevId=S.nearestItst?.itstId;
       S.nearestItst=nearest;S.secondItst=second;
@@ -1022,7 +941,6 @@ function onPosition(pos){
   const prevId=S.nearestItst?.itstId;
   const newId=nearest?.itstId;
 
-  // 교차로가 바뀌면 통과 감지 상태 초기화
   if(String(newId)!==String(prevId)){
     S.prevDist=null;S.minDist=null;S.passed=false;
   }
@@ -1037,7 +955,7 @@ function onPosition(pos){
     stopTimers();
     S.signalColor='none';S.signalSec=null;S.signalMax=null;S.warnFired=false;S.lastFetchedItstId=null;
     S.isRateLimited=false;
-    S._noneCount=0;  // ★ v3.4: 교차로 변경 시 none 카운트 초기화
+    S._noneCount=0;
     setSignalUI(null,'none');
     addLog(`교차로 변경: [${prevId}]→[${newId}] ${nearest.name}`,'info');
     requestSignalFetch(newId,'교차로 변경');
@@ -1048,7 +966,6 @@ function onPosition(pos){
 
 /* ══════════════════════════════════════════════════
    통과 후 다음 교차로 탐색
-   — 방금 통과한 교차로(passedId)를 제외하고 탐색
 ══════════════════════════════════════════════════ */
 function findNextAfterPass(lat,lng,heading,passedId){
   if(!S.itstDB.length)return{nearest:null,second:null,oos:false};
@@ -1092,15 +1009,20 @@ $('dbReloadBtn').addEventListener('click',async()=>{
   addLog('DB 강제 업데이트 시작','info');await loadCrossroadDB(true);
 });
 
-/* ══════════════════════════════════════
-   Wake Lock + 앱 시작
-══════════════════════════════════════ */
+/* ══════════════════════════════════════════════════
+   ★ v3.5: Wake Lock + 앱 시작
+   - requestGPS() 먼저 → 첫 화면 즉시 렌더
+   - DB 로딩은 requestAnimationFrame + 50ms 지연
+     → 첫 프레임 완전히 그려진 뒤 무거운 작업 시작
+══════════════════════════════════════════════════ */
 async function requestWakeLock(){try{if('wakeLock'in navigator)S.wakeLock=await navigator.wakeLock.request('screen');}catch(e){}}
 
 window.addEventListener('load',async()=>{
   addLog('앱 시작 v3.5','info');
   setGuideUI('loading',null);
+  // GPS 권한 요청을 먼저 — UI 블로킹 없음
   requestGPS();
+  // 첫 프레임 렌더 완료 후 무거운 DB 작업 시작
   requestAnimationFrame(()=>{
     setTimeout(async()=>{
       await loadCrossroadDB();
@@ -1120,7 +1042,6 @@ function requestGPS(){
       S.myPos={lat,lng};
       $('gpsPill').className='pill gps-on';$('gpsPill').textContent='● GPS';
       addLog(`GPS 확보: ${lat.toFixed(5)}, ${lng.toFixed(5)}`,'ok');
-      // watchPosition이 이미 살아있으면 중복 등록 방지
       if(S.watchId!==null)return;
       if(S.dbLoaded){
         const{nearest,second,oos}=findNearest(lat,lng,null);
@@ -1140,7 +1061,6 @@ function requestGPS(){
       $('gpsOverlay').classList.remove('hidden');
       $('gpsPill').className='pill gps-off';
       $('gpsPill').textContent='● GPS 없음';
-      // 권한 거부(code=1)면 안내 문구 변경
       if(err.code===1){
         $('gpsOverlay').querySelector('.ov-title').textContent='위치 권한 거부됨';
         $('gpsOverlay').querySelector('.ov-sub').innerHTML=
