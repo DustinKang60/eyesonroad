@@ -343,7 +343,7 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
   </div>
   <div class="set-footer">
     <div class="set-footer-brand">작은앱공방 · 전방주시철저 Eyes on Road</div>
-    <div class="set-footer-ver">v3.3.0 · API 원시값 진단 내장</div>
+    <div class="set-footer-ver">v3.4.0 · sigDB localStorage 제거 · GPS 권한 버그 수정</div>
   </div>
 </div>
 
@@ -573,36 +573,15 @@ function setDbBadge(type,text){
    - C-ITS itstDB와 병합하여 정밀 탐색에 활용
 ══════════════════════════════════════════════════ */
 async function loadSignalDB(){
-  // 캐시 확인
+  // ★ v3.3: localStorage 캐시 없이 sw.js 캐시만 사용 (localStorage 용량 초과 방지)
   try{
-    const ts=localStorage.getItem(CONFIG.SIG_DB_TS_KEY);
-    const cached=localStorage.getItem(CONFIG.SIG_DB_KEY);
-    if(ts&&cached){
-      const age=(Date.now()-parseInt(ts))/(1000*60*60*24);
-      if(age<CONFIG.SIG_CACHE_DAYS){
-        const db=JSON.parse(cached);
-        if(db&&db.length>0){
-          S.sigDB=db; S.sigLoaded=true;
-          addLog(`신호등DB 캐시 로드: ${db.length}개`,'ok');
-          return;
-        }
-      }
-    }
-  }catch(e){}
-
-  // signals.json 다운로드
-  try{
-    addLog('신호등DB 다운로드 중...','info');
+    addLog('신호등DB 로드 중...','info');
     const res=await fetch(CONFIG.SIG_DB_URL);
     if(!res.ok){addLog(`신호등DB 실패: HTTP ${res.status}`,'warn');return;}
     const json=await res.json();
     const sigs=json.signals||[];
     if(!sigs.length){addLog('신호등DB 비어있음','warn');return;}
     S.sigDB=sigs; S.sigLoaded=true;
-    try{
-      localStorage.setItem(CONFIG.SIG_DB_KEY,JSON.stringify(sigs));
-      localStorage.setItem(CONFIG.SIG_DB_TS_KEY,String(Date.now()));
-    }catch(e){addLog('신호등DB 캐시저장 실패(용량초과?)','warn');}
     addLog(`신호등DB 로드완료: ${sigs.length}개`,'ok');
   }catch(e){addLog(`신호등DB 오류: ${e.message}`,'warn');}
 }
@@ -818,22 +797,33 @@ async function doFetchSignal(itstId){
       if(res.status===429){
         addLog('Rate Limit 429 → 60초 후 재시도','warn');
         S.lastFetchedItstId=null;
-        S.isRateLimited=true;  // ★ v3.1: GPS 재호출 차단
+        S.isRateLimited=true;
         scheduleRefetch(itstId,60);
+      } else {
+        // 기타 HTTP 오류 → 30초 후 재시도
+        scheduleRefetch(itstId,30);
       }
       S.isFetching=false;return;
     }
+
+    // ★ v3.4: Content-Type 확인 — HTML 에러 페이지 감지
+    const ct = res.headers.get('content-type')||'';
+    if(ct.includes('text/html')){
+      addLog(`API가 HTML 반환 → 서울시 서버 오류 (교차로 ${itstId})`,'warn');
+      scheduleRefetch(itstId,60);  // 60초 후 재시도
+      S.isFetching=false;return;
+    }
+
     const json=await res.json().catch(()=>null);
-    if(!json){addLog('JSON 파싱 실패','err');S.isFetching=false;return;}
+    if(!json){addLog('JSON 파싱 실패','err');scheduleRefetch(itstId,30);S.isFetching=false;return;}
     const items=Array.isArray(json)?json:Array.isArray(json.data)?json.data:json.body?.items?json.body.items:[json];
-    if(!items?.length){addLog(`신호 없음: 교차로 ${itstId}`,'warn');setSignalUI(null,'none');S.isFetching=false;return;}
+    if(!items?.length){addLog(`신호 없음: 교차로 ${itstId}`,'warn');setSignalUI(null,'none');scheduleRefetch(itstId,30);S.isFetching=false;return;}
     const data=items.find(it=>String(it.itstId)===String(itstId))||items[0];
 
-    // ★ v3.3 진단: 원시 필드 덤프 (none 반환 시 원인 파악용)
+    // ★ v3.3 진단: 원시 필드 덤프
     if(S.debugRaw){
       const keys=Object.keys(data||{});
       addLog(`RAW keys: ${keys.join(', ')}`,'info');
-      // 값 있는 필드만 출력
       const nonNull=keys.filter(k=>data[k]!==null&&data[k]!==undefined&&data[k]!==0&&data[k]!=='');
       addLog(`RAW 값있음: ${nonNull.map(k=>k+'='+data[k]).join(' | ')}`,'info');
     }
@@ -844,10 +834,18 @@ async function doFetchSignal(itstId){
     if(sec!==null&&(S.signalMax===null||sec>S.signalMax))S.signalMax=sec;
     S.signalColor=color;S.signalSec=sec;S.lastFetchedItstId=itstId;
     setSignalUI(sec,color);setSpeedUI(S.mySpeed,color);
-    // ★ 카운트다운 or 대기
-    if(sec!==null&&sec>0)startCountdown(itstId,sec,color);
-    else scheduleRefetch(itstId,15);
-  }catch(e){addLog(`신호 fetch 오류: ${e.message}`,'err');}
+
+    if(sec!==null&&sec>0){
+      S._noneCount=0;  // ★ 정상 수신 시 초기화
+      startCountdown(itstId,sec,color);
+    } else {
+      // ★ v3.4: none/시간미상이 연속 3회 이상이면 30초 간격으로 늦춤 (한도 절약)
+      S._noneCount=(S._noneCount||0)+1;
+      const delay=S._noneCount>=3?30:15;
+      if(S._noneCount>=3) addLog(`시간미상 ${S._noneCount}회 연속 → ${delay}초 후 재시도`,'warn');
+      scheduleRefetch(itstId,delay);
+    }
+  }catch(e){addLog(`신호 fetch 오류: ${e.message}`,'err');scheduleRefetch(itstId,30);}
   S.isFetching=false;
 }
 
@@ -1038,7 +1036,8 @@ function onPosition(pos){
   if(String(newId)!==String(prevId)){
     stopTimers();
     S.signalColor='none';S.signalSec=null;S.signalMax=null;S.warnFired=false;S.lastFetchedItstId=null;
-    S.isRateLimited=false;  // ★ v3.1: 교차로 변경 시 rate limit 초기화
+    S.isRateLimited=false;
+    S._noneCount=0;  // ★ v3.4: 교차로 변경 시 none 카운트 초기화
     setSignalUI(null,'none');
     addLog(`교차로 변경: [${prevId}]→[${newId}] ${nearest.name}`,'info');
     requestSignalFetch(newId,'교차로 변경');
@@ -1099,7 +1098,7 @@ $('dbReloadBtn').addEventListener('click',async()=>{
 async function requestWakeLock(){try{if('wakeLock'in navigator)S.wakeLock=await navigator.wakeLock.request('screen');}catch(e){}}
 
 window.addEventListener('load',async()=>{
-  addLog('앱 시작 v3.3 (원시값 진단모드)','info');
+  addLog('앱 시작 v3.4','info');
   setGuideUI('loading',null);
   loadCrossroadDB();
   loadSignalDB();
