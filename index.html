@@ -326,6 +326,13 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
     </div>
     <div class="set-section">
       <div class="set-section-title">📋 디버그 로그</div>
+      <div style="background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:14px;font-weight:600;">🔬 원시 API 필드 덤프</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">신호 none 진단 · 필드명/값 로그 출력</div>
+        </div>
+        <label class="toggle-wrap"><input type="checkbox" id="chkDebugRaw" checked onchange="S.debugRaw=this.checked"><span class="toggle-slider"></span></label>
+      </div>
       <div class="log-box" id="logBox"><div class="log-line-info">앱 시작 대기 중...</div></div>
       <button class="log-clear-btn" id="logClearBtn">🗑 로그 지우기</button>
     </div>
@@ -333,7 +340,7 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
   </div>
   <div class="set-footer">
     <div class="set-footer-brand">작은앱공방 · 전방주시철저 Eyes on Road</div>
-    <div class="set-footer-ver">v3.2.0 · 신호등DB 28,012개 정밀탐색 내장</div>
+    <div class="set-footer-ver">v3.3.0 · API 원시값 진단 내장</div>
   </div>
 </div>
 
@@ -400,6 +407,7 @@ const S = {
   countdownTimer:    null,
   refetchTimer:      null,
   isRateLimited:     false,  // ★ v3.1: 429 대기 중 GPS 재호출 차단
+  debugRaw:          true,   // ★ v3.3 진단: 원시 API 필드 덤프 (기본 ON)
 
   // ★ v3.0: 교차로 통과 감지용
   prevDist:          null,  // 직전 GPS의 현재 교차로까지 거리
@@ -681,9 +689,10 @@ function findNearest(lat,lng,heading){
 ══════════════════════════════════════ */
 // 1/10초 단위 → 초 변환. 최대 300초(5분) 초과값은 비정상으로 null 처리
 function cs2sec(cs){
+  // v3.3: /10 제거 (API가 이미 초 단위로 줌), 상한 600초로 완화
   if(cs===null||cs===undefined||cs===''||cs<0)return null;
-  const s=Math.round(cs/10);
-  if(s>300)return null;  // ★ v3.1: 300초 초과는 비정상값 제거
+  const s=Math.round(Number(cs));
+  if(s>600)return null;
   return s;
 }
 
@@ -727,6 +736,11 @@ function extractSignal(data, heading){
     const bRaw = data[dir+'BssgRmdrCs'];
     const sRaw = data[dir+'StsgRmdrCs'];
     const yRaw = data[dir+'YlsgRmdrCs'];
+
+    // ★ v3.3 진단 로그: API 원시값 기록 (데이터 있는 방향만)
+    if(bRaw!==null&&bRaw!==undefined || sRaw!==null&&sRaw!==undefined){
+      addLog(\`[원시값] \${dir}: B=\${bRaw} S=\${sRaw} Y=\${yRaw}\`,'info');
+    }
 
     const bssg = cs2sec(bRaw);
     const stsg = cs2sec(sRaw);
@@ -811,6 +825,16 @@ async function doFetchSignal(itstId){
     const items=Array.isArray(json)?json:Array.isArray(json.data)?json.data:json.body?.items?json.body.items:[json];
     if(!items?.length){addLog(`신호 없음: 교차로 ${itstId}`,'warn');setSignalUI(null,'none');S.isFetching=false;return;}
     const data=items.find(it=>String(it.itstId)===String(itstId))||items[0];
+
+    // ★ v3.3 진단: 원시 필드 덤프 (none 반환 시 원인 파악용)
+    if(S.debugRaw){
+      const keys=Object.keys(data||{});
+      addLog(`RAW keys: ${keys.join(', ')}`,'info');
+      // 값 있는 필드만 출력
+      const nonNull=keys.filter(k=>data[k]!==null&&data[k]!==undefined&&data[k]!==0&&data[k]!=='');
+      addLog(`RAW 값있음: ${nonNull.map(k=>k+'='+data[k]).join(' | ')}`,'info');
+    }
+
     const {color, sec}=extractSignal(data,S.myHeading);
     addLog(`신호: ${color} ${sec!==null?sec+'초':'시간미상'} (교차로 ${itstId})`,'ok');
     if(color!==S.signalColor){S.signalMax=sec;S.warnFired=false;}
@@ -1072,7 +1096,7 @@ $('dbReloadBtn').addEventListener('click',async()=>{
 async function requestWakeLock(){try{if('wakeLock'in navigator)S.wakeLock=await navigator.wakeLock.request('screen');}catch(e){}}
 
 window.addEventListener('load',async()=>{
-  addLog('앱 시작 v3.2 (신호등DB 28,012개 정밀탐색)','info');
+  addLog('앱 시작 v3.3 (원시값 진단모드)','info');
   setGuideUI('loading',null);
   loadCrossroadDB();
   loadSignalDB();  // ★ v3.2: 신호등 위치 DB 병렬 로드
