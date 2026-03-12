@@ -228,7 +228,10 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
     <div class="ov-icon">📍</div>
     <div class="ov-title">위치 권한 필요</div>
     <div class="ov-sub">전방 교차로 신호를 확인하려면<br>위치 접근 권한이 필요합니다.</div>
-    <button class="ov-btn" onclick="location.reload()">위치 권한 허용</button>
+    <button class="ov-btn" onclick="requestGPS()">위치 권한 허용</button>
+    <div style="margin-top:12px;font-size:12px;color:#888;text-align:center;">
+      권한 거부 시 브라우저 설정에서<br>위치 권한을 허용해 주세요
+    </div>
   </div>
 </div>
 
@@ -1099,7 +1102,12 @@ window.addEventListener('load',async()=>{
   addLog('앱 시작 v3.3 (원시값 진단모드)','info');
   setGuideUI('loading',null);
   loadCrossroadDB();
-  loadSignalDB();  // ★ v3.2: 신호등 위치 DB 병렬 로드
+  loadSignalDB();
+  requestGPS();
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')requestWakeLock();});
+});
+
+function requestGPS(){
   if(!navigator.geolocation){addLog('GPS 미지원','err');return;}
   addLog('GPS 권한 요청 중...','info');
   navigator.geolocation.getCurrentPosition(
@@ -1109,20 +1117,36 @@ window.addEventListener('load',async()=>{
       S.myPos={lat,lng};
       $('gpsPill').className='pill gps-on';$('gpsPill').textContent='● GPS';
       addLog(`GPS 확보: ${lat.toFixed(5)}, ${lng.toFixed(5)}`,'ok');
+      // watchPosition이 이미 살아있으면 중복 등록 방지
+      if(S.watchId!==null)return;
       if(S.dbLoaded){
         const{nearest,second,oos}=findNearest(lat,lng,null);
         S.nearestItst=nearest;S.secondItst=second;
         setIntersectionUI(nearest,second,oos);
         if(!oos&&nearest)requestSignalFetch(nearest.itstId,'앱 시작');
       }
-      S.watchId=navigator.geolocation.watchPosition(onPosition,err=>addLog(`GPS 오류: ${err.message}`,'err'),{enableHighAccuracy:true,maximumAge:1000,timeout:5000});
+      S.watchId=navigator.geolocation.watchPosition(
+        onPosition,
+        err=>addLog(`GPS 오류: ${err.message}`,'err'),
+        {enableHighAccuracy:true,maximumAge:1000,timeout:5000}
+      );
       requestWakeLock();
     },
-    err=>{addLog(`GPS 거부: ${err.message}`,'err');$('gpsOverlay').classList.remove('hidden');$('gpsPill').className='pill gps-off';$('gpsPill').textContent='● GPS 없음';},
+    err=>{
+      addLog(`GPS 거부/오류: ${err.code} ${err.message}`,'err');
+      $('gpsOverlay').classList.remove('hidden');
+      $('gpsPill').className='pill gps-off';
+      $('gpsPill').textContent='● GPS 없음';
+      // 권한 거부(code=1)면 안내 문구 변경
+      if(err.code===1){
+        $('gpsOverlay').querySelector('.ov-title').textContent='위치 권한 거부됨';
+        $('gpsOverlay').querySelector('.ov-sub').innerHTML=
+          '브라우저 주소창 왼쪽 🔒 아이콘을 눌러<br>위치 권한을 <b>허용</b>으로 변경 후<br>버튼을 다시 눌러주세요.';
+      }
+    },
     {enableHighAccuracy:true,timeout:15000}
   );
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')requestWakeLock();});
-});
+}
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
