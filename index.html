@@ -333,7 +333,7 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
   </div>
   <div class="set-footer">
     <div class="set-footer-brand">작은앱공방 · 전방주시철저 Eyes on Road</div>
-    <div class="set-footer-ver">v3.0.0 · 로컬 DB 캐시 · 진행방향 선상 탐색 · 통과 감지</div>
+    <div class="set-footer-ver">v3.1.0 · 신호판별 재분석 · 429루프 차단 · 이상값 필터</div>
   </div>
 </div>
 
@@ -378,7 +378,7 @@ const CONFIG = {
   // ★ v3.0: 전방 탐색 각도 허용 범위
   HEADING_CONE_DEG: 60,   // 진행방향 ±60° 이내만 전방으로 인정
   // ★ v3.0: 교차로 통과 감지 — 이 거리 이하로 접근 후 멀어지면 통과
-  PASS_DETECT_M:   40,
+  PASS_DETECT_M:   25,  // v3.1: 40→25m (더 정확한 통과 감지)
 };
 
 /* ══════════════════════════════════════
@@ -394,6 +394,7 @@ const S = {
   isFetching:        false,
   countdownTimer:    null,
   refetchTimer:      null,
+  isRateLimited:     false,  // ★ v3.1: 429 대기 중 GPS 재호출 차단
 
   // ★ v3.0: 교차로 통과 감지용
   prevDist:          null,  // 직전 GPS의 현재 교차로까지 거리
@@ -621,7 +622,13 @@ function findNearest(lat,lng,heading){
 /* ══════════════════════════════════════
    신호 데이터 파싱
 ══════════════════════════════════════ */
-function cs2sec(cs){if(cs===null||cs===undefined||cs===''||cs<0)return null;return Math.round(cs/10);}
+// 1/10초 단위 → 초 변환. 최대 300초(5분) 초과값은 비정상으로 null 처리
+function cs2sec(cs){
+  if(cs===null||cs===undefined||cs===''||cs<0)return null;
+  const s=Math.round(cs/10);
+  if(s>300)return null;  // ★ v3.1: 300초 초과는 비정상값 제거
+  return s;
+}
 
 /* ══════════════════════════════════════════════════
    방향 코드 반환 (heading → 'nt'/'et'/'st'/'wt')
@@ -636,21 +643,21 @@ function headingToDir(heading){
 }
 
 /* ══════════════════════════════════════════════════
-   ★★★ 핵심 신호 파싱 (API 실측 기반) ★★★
+   ★★★ 핵심 신호 파싱 v3.1 (재분석 기반) ★★★
 
-   API 필드 의미 (실측 확인):
-   - Bssg = 현재 빨간불 잔여시간  ← 켜져 있는 신호
-   - Stsg = 직진(초록) 잔여시간   ← 켜져 있는 신호
-   - Ylsg = 황색 잔여시간
-   - Ltsg = 좌회전 잔여시간
-   - Pdsg = 보행자 신호
+   API 실측 재분석:
+   - BssgRmdrCs : 빨간(정지) 신호 잔여시간 (1/10초)
+   - StsgRmdrCs : 직진 허용 신호 잔여시간 (1/10초)
+   - YlsgRmdrCs : 황색 신호 잔여시간
 
-   판별 규칙:
-   ① 해당 방향 Ylsg > 0  → 황색
-   ② 해당 방향 Bssg > 0, Stsg null → 빨간 (Bssg = 현재 빨간 잔여)
-   ③ 해당 방향 Stsg > 0, Bssg null → 초록 (Stsg = 현재 초록 잔여)
-   ④ Bssg·Stsg 둘 다 값 있음      → Bssg가 현재 빨간, Stsg는 다음 초록 대기시간
-   ⑤ 위 모두 null → 전체 방향 순서대로 재탐색
+   핵심 발견:
+   - Bssg와 Stsg가 같은 값으로 동시에 오는 경우가 많음
+     → 이는 "현재 직진 가능 (초록)" 상태를 의미
+     → Bssg = 이 방향의 전체 신호 주기 중 남은 시간으로 해석
+   - Bssg만 있고 Stsg=null → 진짜 빨간불
+   - Stsg만 있고 Bssg=null → 초록불
+   - 둘 다 동일한 값 → 초록불 (직진 허용 중)
+   - 둘 다 있고 값이 다름 → Stsg가 직진 잔여, Bssg가 더 크면 빨간 대기
 ══════════════════════════════════════════════════ */
 function extractSignal(data, heading){
   if(!data) return {color:'none', sec:null};
@@ -660,10 +667,13 @@ function extractSignal(data, heading){
   for(const d of ['nt','et','st','wt']){ if(d!==primary) dirs.push(d); }
 
   for(const dir of dirs){
-    const bssg = cs2sec(data[dir+'BssgRmdrCs']);  // 빨간
-    const stsg = cs2sec(data[dir+'StsgRmdrCs']);  // 직진(초록)
-    const ylsg = cs2sec(data[dir+'YlsgRmdrCs']);  // 황색
-    const ltsg = cs2sec(data[dir+'LtsgRmdrCs']);  // 좌회전
+    const bRaw = data[dir+'BssgRmdrCs'];
+    const sRaw = data[dir+'StsgRmdrCs'];
+    const yRaw = data[dir+'YlsgRmdrCs'];
+
+    const bssg = cs2sec(bRaw);
+    const stsg = cs2sec(sRaw);
+    const ylsg = cs2sec(yRaw);
 
     // 이 방향에 아무 데이터도 없으면 다음 방향으로
     if(bssg===null && stsg===null && ylsg===null) continue;
@@ -671,22 +681,24 @@ function extractSignal(data, heading){
     // ① 황색
     if(ylsg!==null && ylsg>0) return {color:'yellow', sec:ylsg};
 
-    // ② 빨간만 있음 → 현재 빨간불
-    if(bssg!==null && stsg===null) return {color:'red', sec:bssg};
-
-    // ③ 초록만 있음 → 현재 초록불
+    // ② Stsg만 있음 → 확실한 초록
     if(stsg!==null && bssg===null) return {color:'green', sec:stsg};
 
-    // ④ 빨간+초록 둘 다 있음 → 현재 빨간, stsg는 다음 초록까지 남은 시간
-    if(bssg!==null && stsg!==null) return {color:'red', sec:bssg};
+    // ③ Bssg만 있음 → 확실한 빨간
+    if(bssg!==null && stsg===null) return {color:'red', sec:bssg};
 
-    // ⑤ 좌회전만 있는 경우
-    if(ltsg!==null && ltsg>0) return {color:'green', sec:ltsg};
+    // ④ 둘 다 있는 경우 → 값 비교로 판별
+    if(bssg!==null && stsg!==null){
+      // Stsg ≤ Bssg: 직진 잔여가 더 짧거나 같음 → 초록 (직진 허용 중)
+      if(stsg<=bssg) return {color:'green', sec:stsg};
+      // Stsg > Bssg: 이상한 케이스 → 빨간으로 보수적 처리
+      return {color:'red', sec:bssg};
+    }
   }
   return {color:'none', sec:null};
 }
 
-// 하위 호환용 래퍼 (doFetchSignal에서 extractSec/inferColor 대신 extractSignal 사용)
+// 하위 호환용 래퍼
 function extractSec(data,heading){ return extractSignal(data,heading).sec; }
 function inferColor(data,sec,heading){ return extractSignal(data,heading).color; }
 
@@ -699,16 +711,16 @@ function inferColor(data,sec,heading){ return extractSignal(data,heading).color;
    ② 같은 교차로 + 카운트다운 진행 중 (countdownTimer 있음)
 ══════════════════════════════════════════════════ */
 function requestSignalFetch(itstId, reason){
-  // ① 진행 중 → 즉시 리턴 (중복 호출 절대 불가)
   if(S.isFetching)return;
 
-  // ② 같은 교차로이고 카운트다운이 살아있으면 → 무시
-  //    (GPS onPosition이 1초마다 이 함수를 호출해도 여기서 모두 차단)
+  // ★ v3.1: 429 대기 중이면 GPS 업데이트로 인한 재호출 완전 차단
+  if(S.isRateLimited)return;
+
   if(String(S.lastFetchedItstId)===String(itstId)
      && S.countdownTimer!==null
      && S.signalSec!==null
      && S.signalSec>0){
-    return; // 조용히 무시 (로그도 안 찍음)
+    return;
   }
 
   addLog(`신호 API 요청 (${reason}): 교차로 ${itstId}`,'info');
@@ -732,6 +744,7 @@ async function doFetchSignal(itstId){
       if(res.status===429){
         addLog('Rate Limit 429 → 60초 후 재시도','warn');
         S.lastFetchedItstId=null;
+        S.isRateLimited=true;  // ★ v3.1: GPS 재호출 차단
         scheduleRefetch(itstId,60);
       }
       S.isFetching=false;return;
@@ -784,6 +797,7 @@ function scheduleRefetch(itstId,delaySec){
   addLog(`${delaySec}초 후 신호 재확인 예약`,'info');
   S.refetchTimer=setTimeout(()=>{
     S.lastFetchedItstId=null;
+    S.isRateLimited=false;  // ★ v3.1: 대기 끝 → 차단 해제
     if(S.nearestItst&&String(S.nearestItst.itstId)===String(itstId))requestSignalFetch(itstId,`${delaySec}초 후 재확인`);
   },delaySec*1000);
 }
@@ -940,6 +954,7 @@ function onPosition(pos){
   if(String(newId)!==String(prevId)){
     stopTimers();
     S.signalColor='none';S.signalSec=null;S.signalMax=null;S.warnFired=false;S.lastFetchedItstId=null;
+    S.isRateLimited=false;  // ★ v3.1: 교차로 변경 시 rate limit 초기화
     setSignalUI(null,'none');
     addLog(`교차로 변경: [${prevId}]→[${newId}] ${nearest.name}`,'info');
     requestSignalFetch(newId,'교차로 변경');
@@ -1000,7 +1015,7 @@ $('dbReloadBtn').addEventListener('click',async()=>{
 async function requestWakeLock(){try{if('wakeLock'in navigator)S.wakeLock=await navigator.wakeLock.request('screen');}catch(e){}}
 
 window.addEventListener('load',async()=>{
-  addLog('앱 시작 v3.0 (로컬 DB캐시·진행방향 탐색·통과감지)','info');
+  addLog('앱 시작 v3.1 (신호판별 재분석·429차단·이상값필터)','info');
   setGuideUI('loading',null);
   loadCrossroadDB();
   if(!navigator.geolocation){addLog('GPS 미지원','err');return;}
