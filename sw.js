@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eyes-on-road-v3-0';  // index.html v2.1.0 대응
+const CACHE_NAME = 'eyes-on-road-v3-1';  // index.html v2.1.0 대응
 
 const CACHE_FILES = [
   './',
