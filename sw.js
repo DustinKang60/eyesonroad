@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eyes-on-road-v3-3';  // index.html v3.2.0 대응
+const CACHE_NAME = 'eyes-on-road-v3-4';  // v3.4: 깨진 캐시 초기화
 
 const CACHE_FILES = [
   './',
