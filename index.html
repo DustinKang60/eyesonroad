@@ -1098,11 +1098,15 @@ $('dbReloadBtn').addEventListener('click',async()=>{
 async function requestWakeLock(){try{if('wakeLock'in navigator)S.wakeLock=await navigator.wakeLock.request('screen');}catch(e){}}
 
 window.addEventListener('load',async()=>{
-  addLog('앱 시작 v3.4','info');
+  addLog('앱 시작 v3.5','info');
   setGuideUI('loading',null);
-  loadCrossroadDB();
-  loadSignalDB();
   requestGPS();
+  requestAnimationFrame(()=>{
+    setTimeout(async()=>{
+      await loadCrossroadDB();
+      loadSignalDB();
+    },50);
+  });
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')requestWakeLock();});
 });
 
