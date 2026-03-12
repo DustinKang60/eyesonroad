@@ -333,7 +333,7 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
   </div>
   <div class="set-footer">
     <div class="set-footer-brand">작은앱공방 · 전방주시철저 Eyes on Road</div>
-    <div class="set-footer-ver">v3.1.0 · 신호판별 재분석 · 429루프 차단 · 이상값 필터</div>
+    <div class="set-footer-ver">v3.2.0 · 신호등DB 28,012개 정밀탐색 내장</div>
   </div>
 </div>
 
@@ -375,6 +375,11 @@ const CONFIG = {
   DB_CACHE_DAYS:   180,
   DB_CACHE_KEY:    'eor_itstDB_v3',
   DB_CACHE_TS_KEY: 'eor_itstDB_ts_v3',
+  // ★ v3.2: 신호등 위치 DB
+  SIG_DB_KEY:      'eor_sigDB_v1',
+  SIG_DB_TS_KEY:   'eor_sigDB_ts_v1',
+  SIG_DB_URL:      'signals.json',
+  SIG_CACHE_DAYS:  180,
   // ★ v3.0: 전방 탐색 각도 허용 범위
   HEADING_CONE_DEG: 60,   // 진행방향 ±60° 이내만 전방으로 인정
   // ★ v3.0: 교차로 통과 감지 — 이 거리 이하로 접근 후 멀어지면 통과
@@ -404,6 +409,7 @@ const S = {
   apiCallCount:0, timerTickCount:0,
   wakeLock:null, watchId:null,
   itstDB:[], dbLoaded:false, dbLoading:false,
+  sigDB:[],  sigLoaded:false,  // ★ v3.2: 신호등 위치 DB
 };
 
 /* ══════════════════════════════════════
@@ -548,6 +554,47 @@ function setDbBadge(type,text){
   b.className=`db-badge ${type}`;
   b.innerHTML=type==='loading'?`<span class="spin">⟳</span> ${text}`:text;
 }
+
+/* ══════════════════════════════════════════════════
+   ★ v3.2: 신호등 위치 DB 로딩 (signals.json)
+   - 28,012개 차량 신호등 위치
+   - 로컬 캐시 180일
+   - C-ITS itstDB와 병합하여 정밀 탐색에 활용
+══════════════════════════════════════════════════ */
+async function loadSignalDB(){
+  // 캐시 확인
+  try{
+    const ts=localStorage.getItem(CONFIG.SIG_DB_TS_KEY);
+    const cached=localStorage.getItem(CONFIG.SIG_DB_KEY);
+    if(ts&&cached){
+      const age=(Date.now()-parseInt(ts))/(1000*60*60*24);
+      if(age<CONFIG.SIG_CACHE_DAYS){
+        const db=JSON.parse(cached);
+        if(db&&db.length>0){
+          S.sigDB=db; S.sigLoaded=true;
+          addLog(`신호등DB 캐시 로드: ${db.length}개`,'ok');
+          return;
+        }
+      }
+    }
+  }catch(e){}
+
+  // signals.json 다운로드
+  try{
+    addLog('신호등DB 다운로드 중...','info');
+    const res=await fetch(CONFIG.SIG_DB_URL);
+    if(!res.ok){addLog(`신호등DB 실패: HTTP ${res.status}`,'warn');return;}
+    const json=await res.json();
+    const sigs=json.signals||[];
+    if(!sigs.length){addLog('신호등DB 비어있음','warn');return;}
+    S.sigDB=sigs; S.sigLoaded=true;
+    try{
+      localStorage.setItem(CONFIG.SIG_DB_KEY,JSON.stringify(sigs));
+      localStorage.setItem(CONFIG.SIG_DB_TS_KEY,String(Date.now()));
+    }catch(e){addLog('신호등DB 캐시저장 실패(용량초과?)','warn');}
+    addLog(`신호등DB 로드완료: ${sigs.length}개`,'ok');
+  }catch(e){addLog(`신호등DB 오류: ${e.message}`,'warn');}
+}
 const FALLBACK=[
   {itstId:4762,name:'강남대로·테헤란로',lat:37.4979,lng:127.0276,speedLimit:60},
   {itstId:4760,name:'강남대로·논현로',lat:37.5088,lng:127.0213,speedLimit:60},
@@ -564,29 +611,53 @@ const FALLBACK=[
 ];
 
 /* ══════════════════════════════════════════════════
-   ★ v3.0: 교차로 탐색 — 진행방향 선상 우선 탐색
+   ★ v3.2: 교차로 탐색 — sigDB 정밀 위치 우선
 
-   기존: 반경 내 거리순 → heading ±90° 필터
-   개선: 진행방향 ±60° 이내 교차로 중 거리순
-         → 없으면 ±90°, 그래도 없으면 전체 반경
-
-   핵심: 통과한 교차로는 S.passed 플래그로 제외
+   탐색 우선순위:
+   1. sigDB (신호등 28,012개) — 반경 150m 이내 + 진행방향 ±60°
+      → 가장 가까운 신호등 위치로 itstDB에서 매칭
+   2. itstDB (C-ITS 교차로) — 기존 로직
 ══════════════════════════════════════════════════ */
 function findNearest(lat,lng,heading){
   if(!S.itstDB.length)return{nearest:null,second:null,oos:false};
 
+  // ★ sigDB 정밀 탐색: 반경 150m + 진행방향 ±60° 내 신호등
+  if(S.sigLoaded && S.sigDB.length && heading!==null && heading!==undefined){
+    const SIG_RADIUS=150;
+    const nearSigs=S.sigDB
+      .map(s=>({lat:s[0],lng:s[1],timer:s[2],dist:Math.round(haversine(lat,lng,s[0],s[1])),bear:bearing(lat,lng,s[0],s[1])}))
+      .filter(s=>s.dist<=SIG_RADIUS && angleDiff(s.bear,heading)<=60)
+      .sort((a,b)=>a.dist-b.dist);
+
+    if(nearSigs.length){
+      // 가장 가까운 신호등 위치 기준으로 itstDB에서 가장 가까운 교차로 매칭
+      const sig=nearSigs[0];
+      const matched=S.itstDB
+        .map(it=>({...it,dist:Math.round(haversine(lat,lng,it.lat,it.lng)),
+                   sigDist:Math.round(haversine(sig.lat,sig.lng,it.lat,it.lng)),
+                   bear:bearing(lat,lng,it.lat,it.lng)}))
+        .filter(it=>it.sigDist<=300)  // 신호등에서 300m 이내 교차로
+        .sort((a,b)=>a.sigDist-b.sigDist);
+
+      if(matched.length){
+        // 진행방향 필터
+        const front=matched.filter(it=>angleDiff(it.bear,heading)<=90);
+        const pool=front.length?front:matched;
+        const second=pool[1]||null;
+        addLog(`sigDB매칭: 신호등${sig.dist}m→교차로 ${pool[0].name}(${pool[0].sigDist}m)`,'info');
+        return{nearest:pool[0],second,oos:false};
+      }
+    }
+  }
+
+  // fallback: 기존 itstDB 직접 탐색
   const all=S.itstDB.map(it=>({
     ...it,
     dist:Math.round(haversine(lat,lng,it.lat,it.lng)),
     bear:bearing(lat,lng,it.lat,it.lng)
   }));
+  const inRadius=all.filter(it=>it.dist<=CONFIG.SEARCH_RADIUS_M).sort((a,b)=>a.dist-b.dist);
 
-  // 반경 내 후보 (통과된 교차로 제외)
-  const inRadius=all
-    .filter(it=>it.dist<=CONFIG.SEARCH_RADIUS_M)
-    .sort((a,b)=>a.dist-b.dist);
-
-  // heading 없으면 그냥 거리순
   if(heading===null||heading===undefined){
     if(!inRadius.length){
       const sorted=all.sort((a,b)=>a.dist-b.dist);
@@ -595,25 +666,11 @@ function findNearest(lat,lng,heading){
     }
     return{nearest:inRadius[0],second:inRadius[1]||null,oos:false};
   }
-
-  // ★ 진행방향 ±60° (가장 좁은 원뿔) — 정면 교차로만
   const cone60=inRadius.filter(it=>angleDiff(it.bear,heading)<=CONFIG.HEADING_CONE_DEG);
-  if(cone60.length){
-    return{nearest:cone60[0],second:cone60[1]||null,oos:false};
-  }
-
-  // ±90° (측면 포함)
+  if(cone60.length) return{nearest:cone60[0],second:cone60[1]||null,oos:false};
   const cone90=inRadius.filter(it=>angleDiff(it.bear,heading)<=90);
-  if(cone90.length){
-    return{nearest:cone90[0],second:cone90[1]||null,oos:false};
-  }
-
-  // 반경 내 전체 (진행 역방향 포함 — 마지막 수단)
-  if(inRadius.length){
-    return{nearest:inRadius[0],second:inRadius[1]||null,oos:false};
-  }
-
-  // 반경 밖
+  if(cone90.length) return{nearest:cone90[0],second:cone90[1]||null,oos:false};
+  if(inRadius.length) return{nearest:inRadius[0],second:inRadius[1]||null,oos:false};
   const sorted=all.sort((a,b)=>a.dist-b.dist);
   if(!sorted.length||sorted[0].dist>30000)return{nearest:null,second:null,oos:true};
   return{nearest:sorted[0],second:sorted[1]||null,oos:false};
@@ -1015,9 +1072,10 @@ $('dbReloadBtn').addEventListener('click',async()=>{
 async function requestWakeLock(){try{if('wakeLock'in navigator)S.wakeLock=await navigator.wakeLock.request('screen');}catch(e){}}
 
 window.addEventListener('load',async()=>{
-  addLog('앱 시작 v3.1 (신호판별 재분석·429차단·이상값필터)','info');
+  addLog('앱 시작 v3.2 (신호등DB 28,012개 정밀탐색)','info');
   setGuideUI('loading',null);
   loadCrossroadDB();
+  loadSignalDB();  // ★ v3.2: 신호등 위치 DB 병렬 로드
   if(!navigator.geolocation){addLog('GPS 미지원','err');return;}
   addLog('GPS 권한 요청 중...','info');
   navigator.geolocation.getCurrentPosition(
