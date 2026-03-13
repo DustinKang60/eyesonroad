@@ -15,7 +15,7 @@
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'Noto Sans KR',sans-serif;overflow:hidden;position:fixed;top:0;left:0;right:0;bottom:0}
 .screen{width:100%;max-width:420px;height:100%;height:100dvh;margin:0 auto;display:flex;flex-direction:column;position:absolute;top:0;left:0;right:0;overflow:hidden;transition:transform .32s cubic-bezier(.4,0,.2,1),opacity .32s;background:var(--bg)}
-.screen.hidden{transform:translateX(100%);opacity:0;pointer-events:none}
+.screen.hidden{transform:translateX(100%);opacity:0;pointer-events:none;z-index:-1;visibility:hidden}
 #settingsScreen{background:var(--bg)}
 .status-bar{flex-shrink:0;padding:10px 18px 6px;display:flex;justify-content:space-between;align-items:center}
 .status-left{display:flex;align-items:center;gap:8px}
@@ -280,9 +280,9 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
         <div class="set-item-name">&#xC804;&#xBC29; &#xD0D0;&#xC0C9; &#xBC18;&#xACBD;</div>
         <div class="set-item-desc">&#xD604;&#xC7AC; &#xC704;&#xCE58;&#xC5D0;&#xC11C; &#xBA87; m &#xC774;&#xB0B4; &#xAD50;&#xCC28;&#xB85C;&#xB97C; &#xD0D0;&#xC0C9;&#xD560;&#xC9C0; &#xC124;&#xC815;&#xD569;&#xB2C8;&#xB2E4;.</div>
         <div class="set-slider-wrap">
-          <input class="set-slider" type="range" min="200" max="2000" step="100" id="radiusSlider" oninput="document.getElementById('radiusVal').textContent=this.value+'m'">
+          <input class="set-slider" type="range" min="200" max="2000" step="100" value="400" id="radiusSlider" oninput="document.getElementById('radiusVal').textContent=this.value+'m'">
           <div class="slider-labels"><span>200m</span><span>2,000m</span></div>
-          <div class="slider-val" id="radiusVal">800m</div>
+          <div class="slider-val" id="radiusVal">400m</div>
         </div>
       </div>
     </div>
@@ -293,7 +293,7 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
         <div class="set-item-name">&#xCD08;&#xB85D;&#xBD88; &#xC885;&#xB8CC; &#xACBD;&#xACE0; &#xD0C0;&#xC774;&#xBC0D;</div>
         <div class="set-item-desc">&#xCD08;&#xB85D;&#xBD88;&#xC774; &#xBA87; &#xCD08; &#xB0A8;&#xC558;&#xC744; &#xB54C; &#xACBD;&#xACE0;&#xD560;&#xC9C0; &#xC124;&#xC815;&#xD569;&#xB2C8;&#xB2E4;.</div>
         <div class="set-slider-wrap">
-          <input class="set-slider" type="range" min="3" max="10" id="warnSlider" oninput="document.getElementById('warnVal').textContent=this.value+'&#xCD08; &#xC804;'">
+          <input class="set-slider" type="range" min="3" max="10" value="5" id="warnSlider" oninput="document.getElementById('warnVal').textContent=this.value+'&#xCD08; &#xC804;'">
           <div class="slider-labels"><span>3&#xCD08;</span><span>10&#xCD08;</span></div>
           <div class="slider-val" id="warnVal">5&#xCD08; &#xC804;</div>
         </div>
@@ -347,7 +347,7 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
   </div>
   <div class="set-footer">
     <div class="set-footer-brand">&#xC791;&#xC740;&#xC571;&#xACF5;&#xBC29; &middot; &#xC804;&#xBC29;&#xC8FC;&#xC2DC;&#xCCA0;&#xC800; Eyes on Road</div>
-    <div class="set-footer-ver">v3.6.0 &middot; &#xC124;&#xC815;&#xC800;&#xC7A5; &middot; &#xC2E0;&#xD638;&#xC2DC;&#xAC04; &middot; &#xC18D;&#xB3C4;&#xACC4;&#xC0B0; &#xC218;&#xC815;</div>
+    <div class="set-footer-ver">v3.7.0 &middot; &#xC2E0;&#xD638;&#xD310;&#xC815; &#xC218;&#xC815; &middot; &#xC124;&#xC815;&#xD654;&#xBA74; &#xACB9;&#xCE68; &#xC218;&#xC815; &middot; &#xBC18;&#xACBD;&#xC800;&#xC7A5; &#xC218;&#xC815;</div>
   </div>
 </div>
 
@@ -434,8 +434,8 @@ function applyPrefsToUI() {
   var ws = document.getElementById('warnSlider');
   var wv = document.getElementById('warnVal');
   var ns = document.getElementById('noSleepToggle');
-  if (rs) { rs.value = CONFIG.SEARCH_RADIUS_M; rv.textContent = CONFIG.SEARCH_RADIUS_M + 'm'; }
-  if (ws) { ws.value = CONFIG.WARN_SECONDS;    wv.textContent = CONFIG.WARN_SECONDS + '초 전'; }
+  if (rs && rv) { rs.value = String(CONFIG.SEARCH_RADIUS_M); rv.textContent = CONFIG.SEARCH_RADIUS_M + 'm'; }
+  if (ws && wv) { ws.value = String(CONFIG.WARN_SECONDS);    wv.textContent = CONFIG.WARN_SECONDS + '초 전'; }
   if (ns) ns.checked = CONFIG.NO_SLEEP;
   document.querySelectorAll('#alertGroup .radio-item').forEach(function(item) {
     item.classList.toggle('sel', item.dataset.val === CONFIG.ALERT_TYPE);
@@ -710,33 +710,33 @@ function headingToDir(heading){
 
 function extractSignal(data,heading){
   if(!data)return{color:'none',sec:null};
-  var dirs=[];
+
+  // 진행 방향 우선, 나머지 순서로 탐색
+  // 4방향 + 대각선 4방향 모두 포함
   var primary=headingToDir(heading);
+  var dirs=[];
   if(primary)dirs.push(primary);
-  ['nt','et','st','wt'].forEach(function(d){if(d!==primary)dirs.push(d);});
+  ['nt','et','st','wt','ne','se','sw','nw'].forEach(function(d){
+    if(d!==primary)dirs.push(d);
+  });
 
   for(var i=0;i<dirs.length;i++){
     var dir=dirs[i];
-    var bRaw=data[dir+'BssgRmdrCs'];
-    var sRaw=data[dir+'StsgRmdrCs'];
-    var yRaw=data[dir+'YlsgRmdrCs'];
+    var sRaw=data[dir+'StsgRmdrCs'];  // 직진신호만 사용
 
-    if(bRaw!==null&&bRaw!==undefined||sRaw!==null&&sRaw!==undefined){
-      addLog('[원시값] '+dir+': B='+bRaw+' S='+sRaw+' Y='+yRaw,'info');
-    }
+    // 이 방향에 데이터 자체가 없으면 다음 방향으로
+    if(sRaw===null||sRaw===undefined)continue;
 
-    var bssg=cs2sec(bRaw);
+    addLog('[원시값] '+dir+': Stsg='+sRaw,'info');
+
     var stsg=cs2sec(sRaw);
-    var ylsg=cs2sec(yRaw);
 
-    if(bssg===null&&stsg===null&&ylsg===null)continue;
-
-    if(ylsg!==null&&ylsg>0)return{color:'yellow',sec:ylsg};
-    if(stsg!==null&&bssg===null)return{color:'green',sec:stsg};
-    if(bssg!==null&&stsg===null)return{color:'red',sec:bssg};
-    if(bssg!==null&&stsg!==null){
-      if(stsg<=bssg)return{color:'green',sec:stsg};
-      return{color:'red',sec:bssg};
+    if(stsg!==null&&stsg>0){
+      // 값이 있으면 → 현재 직진 초록, 잔여시간 = stsg
+      return{color:'green',sec:stsg};
+    }else{
+      // 값이 0 또는 변환 후 null → 현재 빨간, 잔여시간 모름
+      return{color:'red',sec:null};
     }
   }
   return{color:'none',sec:null};
@@ -1079,7 +1079,7 @@ async function requestWakeLock(){
 
 window.addEventListener('load',async function(){
   loadPrefs();  // ★ v3.6: 저장된 설정 먼저 복원
-  addLog('앱 시작 v3.6.0','info');
+  addLog('앱 시작 v3.7.0','info');
   setGuideUI('loading',null);
   requestGPS();
   requestAnimationFrame(function(){
