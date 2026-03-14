@@ -347,7 +347,7 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
   </div>
   <div class="set-footer">
     <div class="set-footer-brand">&#xC791;&#xC740;&#xC571;&#xACF5;&#xBC29; &middot; &#xC804;&#xBC29;&#xC8FC;&#xC2DC;&#xCCA0;&#xC800; Eyes on Road</div>
-    <div class="set-footer-ver">v3.7.0 &middot; &#xC2E0;&#xD638;&#xD310;&#xC815; &#xC218;&#xC815; &middot; &#xC124;&#xC815;&#xD654;&#xBA74; &#xACB9;&#xCE68; &#xC218;&#xC815; &middot; &#xBC18;&#xACBD;&#xC800;&#xC7A5; &#xC218;&#xC815;</div>
+    <div class="set-footer-ver">v3.7.1 &middot; &#xC2E0;&#xD638;&#xD310;&#xC815; &#xC218;&#xC815; &middot; &#xC124;&#xC815;&#xD654;&#xBA74; &#xACB9;&#xCE68; &#xC218;&#xC815; &middot; &#xBC18;&#xACBD;&#xC800;&#xC7A5; &#xC218;&#xC815;</div>
   </div>
 </div>
 
@@ -711,35 +711,30 @@ function headingToDir(heading){
 function extractSignal(data,heading){
   if(!data)return{color:'none',sec:null};
 
-  // 진행 방향 우선, 나머지 순서로 탐색
-  // 4방향 + 대각선 4방향 모두 포함
+  // heading 없으면 방향 판단 불가 → 신호 없음 표시
   var primary=headingToDir(heading);
-  var dirs=[];
-  if(primary)dirs.push(primary);
-  ['nt','et','st','wt','ne','se','sw','nw'].forEach(function(d){
-    if(d!==primary)dirs.push(d);
-  });
-
-  for(var i=0;i<dirs.length;i++){
-    var dir=dirs[i];
-    var sRaw=data[dir+'StsgRmdrCs'];  // 직진신호만 사용
-
-    // 이 방향에 데이터 자체가 없으면 다음 방향으로
-    if(sRaw===null||sRaw===undefined)continue;
-
-    addLog('[원시값] '+dir+': Stsg='+sRaw,'info');
-
-    var stsg=cs2sec(sRaw);
-
-    if(stsg!==null&&stsg>0){
-      // 값이 있으면 → 현재 직진 초록, 잔여시간 = stsg
-      return{color:'green',sec:stsg};
-    }else{
-      // 값이 0 또는 변환 후 null → 현재 빨간, 잔여시간 모름
-      return{color:'red',sec:null};
-    }
+  if(!primary){
+    addLog('heading 없음 → 신호 표시 불가','warn');
+    return{color:'none',sec:null};
   }
-  return{color:'none',sec:null};
+
+  // 내 진행방향 직진신호만 봄 — 다른 방향 폴백 절대 없음
+  // 좌우 차량이 초록이어도 내 방향만 확인
+  var sRaw=data[primary+'StsgRmdrCs'];
+  addLog('[원시값] '+primary+': Stsg='+sRaw,'info');
+
+  if(sRaw===null||sRaw===undefined){
+    // 해당 방향 데이터 자체가 없는 교차로
+    return{color:'none',sec:null};
+  }
+  var stsg=cs2sec(sRaw);
+  if(stsg!==null&&stsg>0){
+    // 직진 신호 켜짐 → 초록
+    return{color:'green',sec:stsg};
+  }else{
+    // 직진 신호 꺼짐 → 빨간, 잔여시간 모름
+    return{color:'red',sec:null};
+  }
 }
 
 /* ======================================================
@@ -1079,7 +1074,7 @@ async function requestWakeLock(){
 
 window.addEventListener('load',async function(){
   loadPrefs();  // ★ v3.6: 저장된 설정 먼저 복원
-  addLog('앱 시작 v3.7.0','info');
+  addLog('앱 시작 v3.7.1','info');
   setGuideUI('loading',null);
   requestGPS();
   requestAnimationFrame(function(){
