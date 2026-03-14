@@ -347,7 +347,7 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
   </div>
   <div class="set-footer">
     <div class="set-footer-brand">&#xC791;&#xC740;&#xC571;&#xACF5;&#xBC29; &middot; &#xC804;&#xBC29;&#xC8FC;&#xC2DC;&#xCCA0;&#xC800; Eyes on Road</div>
-    <div class="set-footer-ver">v3.7.1 &middot; &#xC2E0;&#xD638;&#xD310;&#xC815; &#xC218;&#xC815; &middot; &#xC124;&#xC815;&#xD654;&#xBA74; &#xACB9;&#xCE68; &#xC218;&#xC815; &middot; &#xBC18;&#xACBD;&#xC800;&#xC7A5; &#xC218;&#xC815;</div>
+    <div class="set-footer-ver">v3.7.2 &middot; &#xC2E0;&#xD638;&#xD310;&#xC815; &#xC218;&#xC815; &middot; &#xC124;&#xC815;&#xD654;&#xBA74; &#xACB9;&#xCE68; &#xC218;&#xC815; &middot; &#xBC18;&#xACBD;&#xC800;&#xC7A5; &#xC218;&#xC815;</div>
   </div>
 </div>
 
@@ -743,7 +743,11 @@ function extractSignal(data,heading){
 function requestSignalFetch(itstId,reason){
   if(S.isFetching)return;
   if(S.isRateLimited)return;
-  if(String(S.lastFetchedItstId)===String(itstId)&&S.countdownTimer!==null&&S.signalSec!==null&&S.signalSec>0)return;
+  // 같은 교차로에 대해 카운트다운 또는 재확인 타이머가 살아있으면 GPS 업데이트로 인한 재호출 차단
+  if(String(S.lastFetchedItstId)===String(itstId)){
+    if(S.countdownTimer!==null)return;   // 카운트다운 중 → 차단
+    if(S.refetchTimer!==null)return;     // 재확인 예약 중(빨간불 대기 포함) → 차단
+  }
   addLog('신호 API 요청 ('+reason+'): 교차로 '+itstId,'info');
   doFetchSignal(itstId);
 }
@@ -799,10 +803,16 @@ async function doFetchSignal(itstId){
     if(sec!==null&&sec>0){
       S._noneCount=0;
       startCountdown(itstId,sec,color);
+    }else if(color==='red'){
+      // 빨간불 확정 — 20초 후 재확인, lastFetchedItstId 유지해서 GPS 재호출 차단
+      S._noneCount=0;
+      addLog('빨간불 대기 → 20초 후 재확인','info');
+      scheduleRefetch(itstId,20);
     }else{
+      // color='none' (데이터 미제공 등)
       S._noneCount=(S._noneCount||0)+1;
       var delay=S._noneCount>=3?30:15;
-      if(S._noneCount>=3)addLog('시간미상 '+S._noneCount+'회 연속 → '+delay+'초 후 재시도','warn');
+      if(S._noneCount>=3)addLog('신호없음 '+S._noneCount+'회 연속 → '+delay+'초 후 재시도','warn');
       scheduleRefetch(itstId,delay);
     }
   }catch(e){addLog('신호 fetch 오류: '+e.message,'err');scheduleRefetch(itstId,30);}
@@ -1074,7 +1084,7 @@ async function requestWakeLock(){
 
 window.addEventListener('load',async function(){
   loadPrefs();  // ★ v3.6: 저장된 설정 먼저 복원
-  addLog('앱 시작 v3.7.1','info');
+  addLog('앱 시작 v3.7.2','info');
   setGuideUI('loading',null);
   requestGPS();
   requestAnimationFrame(function(){
