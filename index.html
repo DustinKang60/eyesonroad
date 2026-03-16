@@ -347,7 +347,7 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
   </div>
   <div class="set-footer">
     <div class="set-footer-brand">&#xC791;&#xC740;&#xC571;&#xACF5;&#xBC29; &middot; &#xC804;&#xBC29;&#xC8FC;&#xC2DC;&#xCCA0;&#xC800; Eyes on Road</div>
-    <div class="set-footer-ver">v3.7.2 &middot; &#xC2E0;&#xD638;&#xD310;&#xC815; &#xC218;&#xC815; &middot; &#xC124;&#xC815;&#xD654;&#xBA74; &#xACB9;&#xCE68; &#xC218;&#xC815; &middot; &#xBC18;&#xACBD;&#xC800;&#xC7A5; &#xC218;&#xC815;</div>
+    <div class="set-footer-ver">v3.8.0 &middot; heading &#xC548;&#xC815;&#xD654; &middot; &#xACBD;&#xACC4; &#xB370;&#xB4DC;&#xC874; &middot; &#xC815;&#xC9C0;&#xC2DC; heading &#xACE0;&#xC815;</div>
   </div>
 </div>
 
@@ -447,6 +447,8 @@ function applyPrefsToUI() {
 ====================================================== */
 var S = {
   myPos:null, myHeading:null, mySpeed:0,
+  headingHistory:[],   // v3.8: 최근 heading 이력 (이동 평균용)
+  stableHeading:null,  // v3.8: 안정화된 heading (정지 중 고정)
   prevPos:null, prevPosTime:null,   // v3.6: 좌표 간 속도 계산용
   nearestItst:null, secondItst:null,
   signalColor:'none', signalSec:null, signalMax:null, warnFired:false,
@@ -702,6 +704,13 @@ function cs2sec(cs){
 function headingToDir(heading){
   if(heading===null||heading===undefined)return null;
   var h=((heading%360)+360)%360;
+  // v3.8: 경계값 ±12° 데드존 — 경계 근처에서 방향 오판 방지
+  // 45°/135°/225°/315° 경계에서 ±12° 이내면 null 반환 (이전 방향 유지)
+  var DEAD=12;
+  var boundaries=[45,135,225,315];
+  for(var i=0;i<boundaries.length;i++){
+    if(angleDiff(h,boundaries[i])<=DEAD)return null;
+  }
   if(h>=45&&h<135)return'et';
   if(h>=135&&h<225)return'st';
   if(h>=225&&h<315)return'wt';
@@ -970,7 +979,25 @@ function onPosition(pos){
   S.prevPos={lat:lat,lng:lng};
   S.prevPosTime=now;
   S.myPos={lat:lat,lng:lng};
-  S.myHeading=heading;
+
+  // v3.8: heading 안정화
+  // 문제1 해결: 정지 중 heading이 계속 바뀜 → 5km/h 이상일 때만 heading 갱신
+  // 문제2 해결: 순간값 오차 → 최근 5개 이동평균 사용
+  var HEADING_MIN_SPEED=5;
+  if(calcSpeed>=HEADING_MIN_SPEED&&heading!==null&&heading!==undefined){
+    S.headingHistory.push(heading);
+    if(S.headingHistory.length>5)S.headingHistory.shift();
+    // sin/cos 분리 평균 (0°/360° 경계 오류 방지)
+    var sinSum=0,cosSum=0;
+    for(var i=0;i<S.headingHistory.length;i++){
+      sinSum+=Math.sin(S.headingHistory[i]*Math.PI/180);
+      cosSum+=Math.cos(S.headingHistory[i]*Math.PI/180);
+    }
+    var avgH=(Math.atan2(sinSum,cosSum)*180/Math.PI+360)%360;
+    S.stableHeading=avgH;
+  }
+  // stableHeading이 확정되면 사용, 아직 없으면 null
+  S.myHeading=S.stableHeading;
 
   gid('gpsPill').className='pill gps-on';gid('gpsPill').textContent='● GPS';
   setSpeedUI(S.mySpeed,S.signalColor);
@@ -1084,7 +1111,7 @@ async function requestWakeLock(){
 
 window.addEventListener('load',async function(){
   loadPrefs();  // ★ v3.6: 저장된 설정 먼저 복원
-  addLog('앱 시작 v3.7.2','info');
+  addLog('앱 시작 v3.8.0','info');
   setGuideUI('loading',null);
   requestGPS();
   requestAnimationFrame(function(){
