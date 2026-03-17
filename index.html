@@ -347,7 +347,7 @@ html,body{height:100%;width:100%;background:var(--bg);color:#fff;font-family:'No
   </div>
   <div class="set-footer">
     <div class="set-footer-brand">&#xC791;&#xC740;&#xC571;&#xACF5;&#xBC29; &middot; &#xC804;&#xBC29;&#xC8FC;&#xC2DC;&#xCCA0;&#xC800; Eyes on Road</div>
-    <div class="set-footer-ver">v3.8.0 &middot; heading &#xC548;&#xC815;&#xD654; &middot; &#xACBD;&#xACC4; &#xB370;&#xB4DC;&#xC874; &middot; &#xC815;&#xC9C0;&#xC2DC; heading &#xACE0;&#xC815;</div>
+    <div class="set-footer-ver">v3.8.1 &middot; heading &#xC548;&#xC815;&#xD654; &middot; &#xACBD;&#xACC4; &#xB370;&#xB4DC;&#xC874; &middot; &#xBE68;&#xAC04;&#xBD88; &#xCD94;&#xB860; &#xB85C;&#xC9C1;</div>
   </div>
 </div>
 
@@ -727,23 +727,45 @@ function extractSignal(data,heading){
     return{color:'none',sec:null};
   }
 
-  // 내 진행방향 직진신호만 봄 — 다른 방향 폴백 절대 없음
-  // 좌우 차량이 초록이어도 내 방향만 확인
+  // 내 진행방향 직진신호만 봄
   var sRaw=data[primary+'StsgRmdrCs'];
   addLog('[원시값] '+primary+': Stsg='+sRaw,'info');
 
-  if(sRaw===null||sRaw===undefined){
-    // 해당 방향 데이터 자체가 없는 교차로
-    return{color:'none',sec:null};
+  if(sRaw!==null&&sRaw!==undefined){
+    var stsg=cs2sec(sRaw);
+    if(stsg!==null&&stsg>0){
+      return{color:'green',sec:stsg};
+    }else{
+      return{color:'red',sec:null};
+    }
   }
-  var stsg=cs2sec(sRaw);
-  if(stsg!==null&&stsg>0){
-    // 직진 신호 켜짐 → 초록
-    return{color:'green',sec:stsg};
-  }else{
-    // 직진 신호 꺼짐 → 빨간, 잔여시간 모름
+
+  // v3.8: 내 방향 Stsg 필드 없음
+  // T-Data API는 빨간불인 방향의 Stsg를 생략하는 경우가 있음
+  // 직각 방향(nt↔et/wt, et↔nt/st 등)에 Stsg 값이 있으면 → 내 방향은 빨간불로 추론
+  var crossDirs={
+    'nt':['et','wt'],
+    'st':['et','wt'],
+    'et':['nt','st'],
+    'wt':['nt','st']
+  };
+  var cross=crossDirs[primary];
+  var crossGreen=false;
+  for(var i=0;i<cross.length;i++){
+    var cRaw=data[cross[i]+'StsgRmdrCs'];
+    var cSec=cs2sec(cRaw);
+    if(cSec!==null&&cSec>0){
+      crossGreen=true;
+      addLog('[추론] '+cross[i]+' 직진 초록('+cSec+'s) → '+primary+' 빨간 추론','warn');
+      break;
+    }
+  }
+  if(crossGreen){
     return{color:'red',sec:null};
   }
+
+  // 직각 방향에도 신호 없음 → 이 교차로는 해당 방향 C-ITS 미지원
+  return{color:'none',sec:null};
 }
 
 /* ======================================================
@@ -1111,7 +1133,7 @@ async function requestWakeLock(){
 
 window.addEventListener('load',async function(){
   loadPrefs();  // ★ v3.6: 저장된 설정 먼저 복원
-  addLog('앱 시작 v3.8.0','info');
+  addLog('앱 시작 v3.8.1','info');
   setGuideUI('loading',null);
   requestGPS();
   requestAnimationFrame(function(){
